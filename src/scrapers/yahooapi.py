@@ -1,13 +1,14 @@
 import os
+import sys
 import json
 import urllib.parse
 from pprint import pprint
 from datetime import datetime
 
-import requests
 import loguru
 
 from .cookie_getter import get_browser_cookie
+from .proxy import RequestProxy
 
 
 class YahooAPI:
@@ -15,6 +16,7 @@ class YahooAPI:
         self.BASE_URL = "https://query1.finance.yahoo.com/v7/finance/quote"
         self.cookie_cred = self.load_default_cookie()
         self.working = True
+        self.session = RequestProxy()
         # refresh default cookie if not working
         if not self.test_connection():
             self.cookie_cred = self.regenerate_cookie()
@@ -24,22 +26,29 @@ class YahooAPI:
                 self.working = False
 
     def get_data(self, symbol):
+        # normalize symbol eg BRK.B -> BRK-B
+        symbol = symbol.replace(".", "-")
+
         url, headers = self.build_request(symbol)
-        response = requests.get(url, headers=headers)
+        response = self.session.request("get", url, headers=headers)
         data = response.json()
         api_error = data["quoteResponse"]["error"]
-        if response.status_code == 200 and api_error is None:
-            return self.convert_data(response.json())
+        result_data = data["quoteResponse"]["result"]
+
+        if response.status_code == 200 and api_error is None and result_data:
+            return self.convert_data(result_data[0])
         else:
             loguru.logger.error(
                 f":: YahooApi:Failed {response.status_code} {response.text} {api_error}"
             )
             return None
 
-    def convert_data(self, data):
-        stock_data = data["quoteResponse"]["result"][0]
+    def convert_data(self, stock_data):
+        # favor longer name and fallback to shorter name
+        stock_data["name"] = stock_data.get("longName") or stock_data.get("shortName")
+
         conversion_map = {
-            "longName": "name",
+            "name": "name",
             "symbol": "symbol",
             "marketCap": "marketcap",
             "regularMarketPrice": "price",
@@ -51,18 +60,31 @@ class YahooAPI:
         }
         new_data = {}
         for old_key, new_key in conversion_map.items():
-            value = stock_data[old_key]
+            value = stock_data.get(old_key)
+            if not value:
+                loguru.logger.error(f":: YahooApi: Failed to get {old_key}")
+                print(stock_data)
+                return None
+
             # for values with multi forms, prefer the raw form
             if isinstance(value, dict):
                 value = value.get("raw")
             new_data[new_key] = value
+
+        # Add remaining data
         new_data["timestamp"] = int(datetime.utcnow().timestamp())
         return new_data
 
-    def test_connection(self):
+    def test_connection(self, tries=0):
         loguru.logger.info(":: Testing connection to Yahoo API")
         url, headers = self.build_request("NKE")
-        response = requests.get(url, headers=headers)
+
+        try:
+            response = self.session.request("get", url, headers=headers)
+        except Exception as e:
+            loguru.logger.error(f":: Unknown Error: {e}")
+            return False
+
         if (
             response.status_code == 200
             and response.json()["quoteResponse"]["error"] is None
@@ -78,6 +100,7 @@ class YahooAPI:
         cookie = "; ".join([f"{k}={v}" for k, v in cookie_data.items()]).strip()
         fields = [
             "longName",
+            "shortName",
             "symbol",
             "marketCap",
             "regularMarketPrice",
@@ -158,7 +181,7 @@ class YahooAPI:
             "Referer": "https://finance.yahoo.com/",
             "Referrer-Policy": "no-referrer-when-downgrade",
         }
-        response = requests.get(url, headers=headers)
+        response = self.session.request("get", url, headers=headers)
         loguru.logger.info(f":: YahooApi: New Crumb {response.text}")
         return response.text
 

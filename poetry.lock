@@ -294,6 +294,21 @@ files = [
 importlib-resources = {version = ">=5.0", markers = "python_version < \"3.10\""}
 
 [[package]]
+name = "free-proxy"
+version = "1.1.1"
+description = "Proxy scraper for further use"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "free_proxy-1.1.1.tar.gz", hash = "sha256:2b20eb863972b42984292cee17132f4c9ddb8fef0a9bee9bc15215a08e6899fb"},
+]
+
+[package.dependencies]
+lxml = "*"
+requests = "*"
+
+[[package]]
 name = "greenlet"
 version = "2.0.2"
 description = "Lightweight in-process concurrent programming"
@@ -1587,4 +1602,4 @@ testing = ["big-O", "flake8 (<5)", "jaraco.functools", "jaraco.itertools", "more
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "f5360008d81a918281ca43317debcea6fdeac84f316c4abfde122c07ea1a1b37"
+content-hash = "2d79ddcde3636b2e81e940dfba271c03ddda0d4949c2bb037cf2cf3cfa5ef8e5"
