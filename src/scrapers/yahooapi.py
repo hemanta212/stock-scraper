@@ -31,17 +31,19 @@ class YahooAPI:
 
         url, headers = self.build_request(symbol)
         response = self.session.request("get", url, headers=headers)
-        data = response.json()
-        api_error = data["quoteResponse"]["error"]
-        result_data = data["quoteResponse"]["result"]
+        api_error = None
 
-        if response.status_code == 200 and api_error is None and result_data:
-            return self.convert_data(result_data[0])
-        else:
-            loguru.logger.error(
-                f":: YahooApi:Failed {response.status_code} {response.text} {api_error}"
-            )
-            return None
+        if response.status_code == 200:
+            data = response.json()
+            api_error = data["quoteResponse"]["error"]
+            result_data = data["quoteResponse"]["result"]
+            if api_error is None and result_data:
+                return self.convert_data(result_data[0])
+
+        loguru.logger.error(
+            f":: YahooApi:Failed {response.status_code} {response.text} {api_error}"
+        )
+        return None
 
     def convert_data(self, stock_data):
         # favor longer name and fallback to shorter name
