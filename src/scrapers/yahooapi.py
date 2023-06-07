@@ -12,6 +12,7 @@ This means, we dont have to spin up a playwright instance as often.
 import json
 import os
 import sys
+import time
 import urllib.parse
 from datetime import datetime, timedelta
 from pprint import pprint
@@ -24,12 +25,13 @@ from src.utils.proxy import RequestProxy
 
 
 class YahooAPI:
-    def __init__(self, use_proxy=False):
+    def __init__(self, use_proxy=False, rate_limit=0):
         self.BASE_URL = "https://query1.finance.yahoo.com/v7/finance/quote"
-        self.working = True
         self.session = RequestProxy(use_proxy=use_proxy)
+        self.rate_limit = rate_limit
         self.cookie_file_path = "cookie.json"
         self.cookie_cred = self.load_default_cookie()
+        self.working = True
         # refresh default cookie if not working
         if not self.test_connection():
             self.cookie_cred = self.regenerate_cookie()
@@ -39,6 +41,8 @@ class YahooAPI:
                 self.working = False
 
     def get_data(self, symbol):
+        if self.rate_limit:
+            time.sleep(self.rate_limit)
         # normalize symbol eg BRK.B -> BRK-B
         symbol = symbol.replace(".", "-")
 
@@ -231,3 +235,9 @@ class YahooAPI:
         utc_timestamp = int(regular_market_time.astimezone(utc_timezone).timestamp())
 
         return utc_timestamp
+
+    def __repr__(self):
+        return self.__class__.__name__
+
+    def __str__(self):
+        return f"{self.__class__.__name__} {'(PROXY)' if self.session.proxy else ''}".strip()

@@ -1,5 +1,6 @@
 import sys
 from queue import deque
+from functools import partial
 
 from src import logger
 from src.databases import CsvDB, JsonDB, SqliteDB
@@ -11,11 +12,15 @@ from src.utils.validator import is_valid
 
 def main(symbols):
     scrapers = (
-        YahooAPI,
-        StockAnalysisAPI,
+        partial(YahooAPI, rate_limit=0.2),
+        partial(StockAnalysisAPI, rate_limit=0.3),
+        partial(YahooAPI, use_proxy=True),
+        partial(StockAnalysisAPI, use_proxy=True, rate_limit=0.3),
     )
     symbols_access_funcs = (
         symbols.pop,
+        symbols.pop,
+        symbols.popleft,
         symbols.popleft,
     )
 
@@ -47,8 +52,9 @@ def create_scraper(scraper_class, symbol_func, result):
     result: Sink to submit scraped data and failures
     """
     scraper = scraper_class()
+
     if not scraper.working:
-        logger.error(f":: {scraper_class.__name__} is not working")
+        logger.error(f":: {scraper} is not working")
         return
 
     index = 0
@@ -62,15 +68,15 @@ def create_scraper(scraper_class, symbol_func, result):
         try:
             data = scraper.get_data(symbol)
         except Exception as e:
-            logger.error(f":: {scraper_class.__name__}: {e}")
+            logger.error(f":: {scraper}: {e}")
             data = None
 
         if data and is_valid(data):
             result["data"].append(data)
             index += 1
-            logger.debug(f":: {scraper_class.__name__}: Added {symbol} | {index}")
+            logger.debug(f":: {scraper}: Added {symbol} | {index}")
         else:
-            result["failures"].update({symbol: scraper_class.__name__})
+            result["failures"].update({symbol: repr(scraper)})
 
 
 if __name__ == "__main__":

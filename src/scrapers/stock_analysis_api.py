@@ -21,10 +21,11 @@ from src.utils.proxy import RequestProxy
 
 
 class StockAnalysisAPI:
-    def __init__(self, use_proxy=False):
+    def __init__(self, use_proxy=False, rate_limit=0):
         self.BASE_URL = "https://stockanalysis.com/api/quotes/s/{}"
-        self.working = True
+        self.rate_limit = rate_limit
         self.session = RequestProxy(use_proxy=use_proxy)
+        self.working = True
         if not self.test_connection():
             self.session = RequestProxy(use_proxy=use_proxy)
             if not self.test_connection():
@@ -32,7 +33,9 @@ class StockAnalysisAPI:
                 self.working = False
 
     def get_data(self, symbol):
-        time.sleep(0.3)
+        if self.rate_limit:
+            time.sleep(self.rate_limit)
+
         url, headers = self.BASE_URL.format(symbol), self.get_headers()
         response = self.session.request("get", url, headers=headers)
 
@@ -179,3 +182,9 @@ class StockAnalysisAPI:
         utc_timestamp = int(date.astimezone(utc_timezone).timestamp())
 
         return utc_timestamp
+
+    def __repr__(self):
+        return self.__class__.__name__
+
+    def __str__(self):
+        return f"{self.__class__.__name__} {'(PROXY)' if self.session.proxy else ''}".strip()

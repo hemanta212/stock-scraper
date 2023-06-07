@@ -14,9 +14,11 @@ We create and execute multiple tasks, out of same function instance using thread
 - All data and final failure list are then returned
 """
 
-import math
 import concurrent.futures
+import math
+from functools import partial
 from queue import deque
+
 from src import logger
 
 
@@ -63,10 +65,11 @@ def match_scrapers_failures(scrapers, failures):
     """
     scrapers_failures = {}
     for scraper in scrapers:
+        # scraper is a partial
         symbols = [
             symbol
             for symbol, scraper_name in failures.items()
-            if scraper.__name__ != scraper_name
+            if repr(scraper) != scraper_name
         ]
         scrapers_failures[scraper] = deque(symbols).pop
     return scrapers_failures
