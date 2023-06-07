@@ -1,64 +1,54 @@
-from queue import deque
-import concurrent.futures
-import math
 import sys
+from queue import deque
 
-import loguru
-
+from src import logger
 from src.databases import CsvDB, JsonDB, SqliteDB
 from src.listings import listings_map
+from src.runners.threading import parallel_executor
 from src.scrapers import StockAnalysisAPI, YahooAPI
+from src.utils.validator import is_valid
 
 
 def main(symbols):
-    dbs = [CsvDB(), JsonDB(), SqliteDB()]
-    all_data, failures = [], {}
+    scrapers = (
+        YahooAPI,
+        StockAnalysisAPI,
+    )
+    symbols_access_funcs = (
+        symbols.pop,
+        symbols.popleft,
+    )
 
-    # Initial Pass
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        symbol_funcs = [symbols.pop, symbols.popleft]
-        scrapers = [YahooAPI, StockAnalysisAPI]
-        futures = [
-            executor.submit(
-                create_scraper, scraper, symbol_func, all_data, failures, use_proxy=True
-            )
-            for scraper, symbol_func in zip(scrapers, symbol_funcs)
-        ]
-        for future in concurrent.futures.as_completed(futures):
-            future.result()
+    all_data, failures = parallel_executor(
+        create_scraper, scrapers, symbols_access_funcs
+    )
 
-    final_failures = {}
-    # Second Pass: Retry failures with alternate scraper
-    loguru.logger.info(":: Reprocessing Failures with alternate scraper")
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        scrapers = [StockAnalysisAPI, YahooAPI]
-        scrapers_symbols = match_scrapers_failures(scrapers, failures)
-        futures = [
-            executor.submit(
-                create_scraper,
-                scraper,
-                symbol_func,
-                all_data,
-                final_failures,
-                use_proxy=True,
-            )
-            for scraper, symbol_func in scrapers_symbols.items()
-            if failures
-        ]
-        for future in concurrent.futures.as_completed(futures):
-            future.result()
+    print(f":: Scraped {len(all_data)} stocks data.")
+    print(f":: Failed stocks {len(failures)}: {failures}")
 
-    print(f":: Failed symbols: {final_failures}")
-
+    dbs = (
+        CsvDB,
+        JsonDB,
+        SqliteDB,
+    )
     if all_data:
         for db in dbs:
-            db.save_bulk(all_data)
+            db().save_bulk(all_data).close()
+    print(f":: Saved to all databases.")
 
 
-def create_scraper(scraper_class, symbol_func, all_data, failures, use_proxy=True):
-    scraper = scraper_class(use_proxy=use_proxy)
+def create_scraper(scraper_class, symbol_func, result):
+    """
+    Specifies how a scraper instances operates
+    We're going to spin up multiple of these.
+
+    scraper_class: The scraper to use in this instance
+    symbol_func: A function to get next symbol to scrape
+    result: Sink to submit scraped data and failures
+    """
+    scraper = scraper_class()
     if not scraper.working:
-        loguru.logger.error(":: Yahoo API is not working")
+        logger.error(f":: {scraper_class.__name__} is not working")
         return
 
     index = 0
@@ -69,51 +59,35 @@ def create_scraper(scraper_class, symbol_func, all_data, failures, use_proxy=Tru
             # pop from empty deque
             break
 
-        data = scraper.get_data(symbol)
-        if data is not None:
-            all_data.append(data)
+        try:
+            data = scraper.get_data(symbol)
+        except Exception as e:
+            logger.error(f":: {scraper_class.__name__}: {e}")
+            data = None
+
+        if data and is_valid(data):
+            result["data"].append(data)
             index += 1
-            loguru.logger.debug(
-                f":: {scraper_class.__name__}: Added {symbol} | {index}"
-            )
+            logger.debug(f":: {scraper_class.__name__}: Added {symbol} | {index}")
         else:
-            failures[symbol] = scraper_class.__name__
-
-
-def divide_symbols(symbol_list, buckets):
-    """Divides the list of symbols into Exactly given buckets"""
-    # divide the list l into lists of size n
-    l, n = symbol_list, math.ceil(len(symbol_list) / buckets)
-    for i in range(0, len(l), n):
-        yield l[i : i + n]
-
-
-def match_scrapers_failures(scrapers, failures):
-    """
-    When a stock fetch fails, its symbol and scraper used gets documented
-    Here we try to read it, and assign symbol to different scraper
-    """
-    scrapers_failures = {}
-    for scraper in scrapers:
-        symbols = [
-            symbol
-            for symbol, scraper_name in failures.items()
-            if scraper.__name__ != scraper_name
-        ]
-        scrapers_failures[scraper] = deque(symbols).pop
-    return scrapers_failures
+            result["failures"].update({symbol: scraper_class.__name__})
 
 
 if __name__ == "__main__":
     listing_arg = sys.argv[1] if len(sys.argv) > 1 else "nasdaq100"
 
+    # Get fetcher class from listing string
     symbols_fetcher = listings_map.get(listing_arg)
-    if symbols_fetcher is None:
-        loguru.logger.error(f":: Main: Invalid Stock list: {listing_arg}")
+    if symbols_fetcher is None or listing_arg in ("--help", "-h"):
+        logger.info(f":: Usage: {', '.join(list(listings_map.keys()))}")
         sys.exit(1)
 
-    symbols = symbols_fetcher().queue()
-    loguru.logger.debug(f":: Fetching {len(symbols)} stocks from {listing_arg}")
+    # Try to scrape listings from fetcher
+    try:
+        symbols = symbols_fetcher().queue()
+    except Exception as e:
+        logger.error(f":: Failed getting listings for {listing_arg} {e}")
+        sys.exit(1)
 
-    symbols = deque(["NKE", "COHR"])
+    logger.debug(f":: Fetching {len(symbols)} stocks from {listing_arg}")
     main(symbols)

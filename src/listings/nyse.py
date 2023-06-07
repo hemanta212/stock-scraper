@@ -1,7 +1,9 @@
 from queue import deque
 import json
 import requests
-import loguru
+
+from src import logger
+from src.databases import cache_listings
 
 
 class NYSE:
@@ -13,8 +15,8 @@ class NYSE:
 
     def queue(self):
         # Change post data, until you get all the stocks
-        symbols = deque()
-        for i in range(1, 10):
+        symbols_names = {}
+        for i in range(1, 100):
             data = {
                 "instrumentType": "EQUITY",
                 "pageNumber": i,
@@ -30,20 +32,25 @@ class NYSE:
                     i
                     for i in data
                     if i.get("symbolTicker")
+                    and i.get("instrumentName")
                     and i["symbolTicker"] == i.get("normalizedTicker")
                     and i["micCode"] == "XNYS"
                 ]
                 for stock in valid_stocks:
-                    symbols.append(stock["symbolTicker"])
+                    symbol, name = stock["symbolTicker"], stock["instrumentName"]
+                    symbols_names[symbol] = name
                 # Check if last page or pagination remaining
                 if len(data) < 1000:
                     break
             else:
-                loguru.logger.error(
+                logger.exception(
                     f":: NYSEListing Error: {response.status_code} {response.text}"
                 )
+                raise Exception("Parsing listings error")
 
-        loguru.logger.debug(f":: NYSEListing: Found {len(symbols)} stocks.")
-        with open("./data/nyse.json", "w") as wf:
-            json.dump(list(symbols), wf)
+        logger.debug(f":: NYSEListing: Found {len(symbols_names)} stocks.")
+
+        cache_listings(symbols_names)
+        symbols = deque(symbols_names.keys())
+
         return symbols

@@ -6,12 +6,12 @@ A wrapper around requests to handle proxy rotation and retries.
 """
 
 import sys
-import requests
-import loguru
-from fp.fp import FreeProxy
-from fp.errors import FreeProxyException
 
 import requests
+from fp.errors import FreeProxyException
+from fp.fp import FreeProxy
+
+from src import logger
 
 
 class RequestProxy:
@@ -36,24 +36,24 @@ class RequestProxy:
             response = self.session.request(method, url, **kwargs)
         except Exception as e:
             if tries == self.max_retries:
-                loguru.logger.error(f":: Proxy Maxed out: Disabling scraper instance")
+                logger.error(f":: Proxy Maxed out: Disabling scraper instance")
                 self.disabled = True
                 return self.disabled_response
             else:
-                loguru.logger.error(f":: Proxy Error: {self.proxy}, {e} Rotating")
+                logger.error(f":: Proxy Error: {self.proxy}, {e} Rotating")
                 self.set_proxy()
                 return self.request(method, url, tries=tries + 1, **kwargs)
 
         return response
 
     def set_proxy(self, tries=0):
-        loguru.logger.debug(f":: Proxy: Getting new proxy, please wait..")
+        logger.debug(f":: Proxy: Getting new proxy, please wait..")
         try:
             proxy = FreeProxy(https=True, anonym=True).get()
-            loguru.logger.debug(f":: Proxy Selected: {proxy}")
+            logger.debug(f":: Proxy Selected: {proxy}")
             return proxy
         except FreeProxyException as e:
-            loguru.logger.error(f":: Proxy Error: {e}")
+            logger.error(f":: Proxy Error: {e}")
             if tries == 3:  # use 3 for no available proxy errors
                 self.disabled = True
                 return None

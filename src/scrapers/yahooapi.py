@@ -16,11 +16,11 @@ import urllib.parse
 from datetime import datetime, timedelta
 from pprint import pprint
 
-import loguru
 import pytz
 
-from src.scrapers.cookie_getter import get_browser_cookie
-from src.scrapers.proxy import RequestProxy
+from src import logger
+from src.utils.cookie_getter import get_browser_cookie
+from src.utils.proxy import RequestProxy
 
 
 class YahooAPI:
@@ -35,7 +35,7 @@ class YahooAPI:
             self.cookie_cred = self.regenerate_cookie()
             # if still not working, then set works to False
             if not self.test_connection():
-                loguru.logger.error(":: Setting Yahoo API as Dead")
+                logger.error(":: Setting Yahoo API as Dead")
                 self.working = False
 
     def get_data(self, symbol):
@@ -51,20 +51,19 @@ class YahooAPI:
             api_error = data["quoteResponse"]["error"]
             result_data = data["quoteResponse"]["result"]
             if api_error is None and result_data:
-                return self.convert_data(result_data[0])
+                return self.convert_data(result_data[0], symbol)
 
-        loguru.logger.error(
-            f":: YahooApi:Failed {response.status_code} {response.text} {api_error}"
+        logger.error(
+            f":: YahooApi Failed {symbol}: {response.status_code} {response.text} {api_error}"
         )
         return None
 
-    def convert_data(self, stock_data):
+    def convert_data(self, stock_data, symbol):
         # favor longer name and fallback to shorter name
         stock_data["name"] = stock_data.get("longName") or stock_data.get("shortName")
 
         conversion_map = {
             "name": "name",
-            "symbol": "symbol",
             "marketCap": "marketcap",
             "regularMarketPrice": "price",
             "regularMarketVolume": "volume",
@@ -77,7 +76,7 @@ class YahooAPI:
         for old_key, new_key in conversion_map.items():
             value = stock_data.get(old_key)
             if not value:
-                loguru.logger.error(f":: YahooApi: Failed to get {old_key}")
+                logger.error(f":: YahooApi {symbol}: Failed to get {old_key}")
                 print(stock_data)
                 return None
 
@@ -87,18 +86,24 @@ class YahooAPI:
             new_data[new_key] = value
 
         # Add remaining data
-
+        new_data["symbol"] = symbol
         new_data["timestamp"] = self.parse_date(stock_data)
         return new_data
 
     def test_connection(self):
-        loguru.logger.info(":: Testing connection to Yahoo API")
-        data = self.get_data("NKE")
+        logger.info(":: Testing connection to Yahoo API")
+
+        try:
+            data = self.get_data("NKE")
+        except Exception as e:
+            logger.error(e)
+            data = None
+
         if data:
-            loguru.logger.info(":: Connection to Yahoo API successful")
+            logger.info(":: Connection to Yahoo API successful")
             return True
         else:
-            loguru.logger.error(":: Connection to Yahoo API failed")
+            logger.error(":: Connection to Yahoo API failed")
             return False
 
     def build_request(self, symbol):
@@ -150,11 +155,11 @@ class YahooAPI:
         return url, headers
 
     def regenerate_cookie(self):
-        loguru.logger.info(":: Yahoo API: Regenerating cookie")
+        logger.info(":: Yahoo API: Regenerating cookie")
         cookies = get_browser_cookie("https://finance.yahoo.com/quote/NKE")
 
         if not cookies:
-            loguru.logger.error(":: Yahoo API: PlayWright Failed to get cookie")
+            logger.error(":: Yahoo API: PlayWright Failed to get cookie")
             return {"cookie": {}, "crumb": ""}
 
         domains = [".yahoo.com", ".finance.yahoo.com"]
@@ -169,11 +174,11 @@ class YahooAPI:
         cookie_str = "; ".join([f"{k}={v}" for k, v in cookie.items()]).strip()
         crumb = self.get_crumb(cookie_str)
         if not crumb:
-            loguru.logger.error(":: Yahoo API: Failed to get crumb")
+            logger.error(":: Yahoo API: Failed to get crumb")
             return {"cookie": {}, "crumb": ""}
 
         cookie_data = {"cookie": cookie, "crumb": crumb}
-        loguru.logger.info(f":: Yahoo API: Generated new cookie {cookie_str}")
+        logger.info(f":: Yahoo API: Generated new cookie {cookie_str}")
 
         with open(self.cookie_file_path, "w") as f:
             json.dump(cookie_data, f)

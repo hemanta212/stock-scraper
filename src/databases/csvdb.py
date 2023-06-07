@@ -1,6 +1,6 @@
 import os
 import csv
-import loguru
+from src import logger
 from src.databases import DATA_DIR, ensure_dir
 
 
@@ -32,11 +32,16 @@ class CsvDB:
         with open(self.dbpath, "a") as f:
             writer = csv.DictWriter(f, fieldnames=self.columns)
             writer.writerow(data)
-        loguru.logger.debug(f":: CsvDB: Saved {data['symbol']} to database.")
+        logger.debug(f":: CsvDB: Saved {data['symbol']} to database.")
+        return self
 
     def save_bulk(self, data):
         """Save data of multiple stocks in bulk"""
         with open(self.dbpath, "a") as f:
             writer = csv.DictWriter(f, fieldnames=self.columns)
             writer.writerows(data)
-        loguru.logger.debug(f":: CsvDB: Saved {len(data)} stocks to database.")
+        logger.debug(f":: CsvDB: Saved {len(data)} stocks to database.")
+        return self
+
+    def close(self):
+        pass

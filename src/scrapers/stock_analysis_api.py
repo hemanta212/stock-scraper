@@ -1,22 +1,23 @@
 """
 StockAnalysis.com API
 """
-import time
 import json
 import os
-import sys
 import re
+import sys
+import time
 import urllib.parse
 from datetime import datetime, timedelta
 from pprint import pprint
 
-import loguru
+import lxml.html
 import pytz
 import requests
-import lxml.html
 
-from src.scrapers.cookie_getter import get_browser_cookie
-from src.scrapers.proxy import RequestProxy
+from src import logger
+from src.databases import ListingCache
+from src.utils.cookie_getter import get_browser_cookie
+from src.utils.proxy import RequestProxy
 
 
 class StockAnalysisAPI:
@@ -27,32 +28,33 @@ class StockAnalysisAPI:
         if not self.test_connection():
             self.session = RequestProxy(use_proxy=use_proxy)
             if not self.test_connection():
-                loguru.logger.error(":: Setting Scraper as Dead")
+                logger.error(":: Setting Scraper as Dead")
                 self.working = False
 
     def get_data(self, symbol):
-        time.sleep(1)
+        time.sleep(0.3)
         url, headers = self.BASE_URL.format(symbol), self.get_headers()
         response = self.session.request("get", url, headers=headers)
 
         data = None
         try:
-            data = response.json()["data"]
+            data = response.json()
         except requests.exceptions.JSONDecodeError as e:
-            loguru.logger.error(
-                f":: StockAnalysisAPI failed: {response.status_code} {e} {response.text}"
+            logger.error(
+                f":: StockAnalysisAPI failed {symbol}: {response.status_code} {e}"
             )
             return None
 
         if response.status_code == 200:
-            return self.convert_data(data, symbol)
+            return self.convert_data(data.get("data"), symbol)
         else:
-            loguru.logger.error(
-                f":: StockAnalysisAPI failed: {response.status_code} {response.text}"
-            )
+            logger.error(f":: StockAnalysisAPI failed {symbol}: {response.status_code}")
             return None
 
     def convert_data(self, stock_data, symbol):
+        if not stock_data:
+            return None
+
         new_data = {}
         # info we need
         conversion_map = {
@@ -67,14 +69,14 @@ class StockAnalysisAPI:
         for old_key, new_key in conversion_map.items():
             value = stock_data.get(old_key)
             if not value:
-                loguru.logger.error(
+                logger.error(
                     f":: StockAnalysisAPI: {symbol} Failed to get {new_key}:{old_key}"
                 )
                 print(stock_data)
                 return None
             new_data[new_key] = value
 
-        name = self.get_name(symbol).strip()
+        name = self.get_name(symbol)
         date = self.parse_date(stock_data.get("u"))
         if not name or not date:
             return None
@@ -83,13 +85,19 @@ class StockAnalysisAPI:
         return new_data
 
     def test_connection(self):
-        loguru.logger.info(":: Testing connection to StockAnalysis API")
-        data = self.get_data("NKE")
+        logger.info(":: Testing connection to StockAnalysis API")
+
+        try:
+            data = self.get_data("NKE")
+        except Exception as e:
+            logger.error(e)
+            data = None
+
         if data:
-            loguru.logger.info(":: Connection to StockAnalysis API successful")
+            logger.info(":: Connection to StockAnalysis API successful")
             return True
         else:
-            loguru.logger.error(":: Connection to StockAnalysis API failed")
+            logger.error(":: Connection to StockAnalysis API failed")
             return False
 
     def get_headers(self):
@@ -106,6 +114,19 @@ class StockAnalysisAPI:
         }
 
     def get_name(self, symbol):
+        """Get name from listing cache database, if not found, scrape it"""
+        try:
+            db = ListingCache()
+            name = db.get_name(symbol)[0]
+        except Exception as e:
+            name = None
+
+        if not name:
+            name = self.scrape_name(symbol)
+        return name
+
+    def scrape_name(self, symbol):
+        time.sleep(1)
         url = f"https://stockanalysis.com/stocks/{symbol}/"
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/114.0",
@@ -128,15 +149,13 @@ class StockAnalysisAPI:
             name = title[0].text_content().split("(")[0].strip()
             return name
         except Exception as e:
-            loguru.logger.error(f":: StockAnalysisAPI getting name failed: {e} {title}")
+            logger.error(f":: StockAnalysisAPI getting name failed: {e} {title}")
             return None
 
     def parse_date(self, raw_date):
         if not raw_date:
-            loguru.logger.error(":: StockAnalysisAPI parse_date failed: No date")
+            logger.error(":: StockAnalysisAPI parse_date failed: No date")
             return None
-
-        loguru.logger.info(f":: StockAnalysisAPI Generating timestamp: {raw_date}")
 
         # convert 'Jun 6, 2023, 4:00 PM', or 'Jun 6, 2023, 4:00 AM EDT' etc to timestamp
         # Use regular expressions to extract the date and time
@@ -146,9 +165,7 @@ class StockAnalysisAPI:
             # Extract the first match
             raw_date = matches[0]
         else:
-            loguru.logger.error(
-                f":: StockAnalysisAPI parse_date failed: regex {raw_date}"
-            )
+            logger.error(f":: StockAnalysisAPI parse_date failed: regex {raw_date}")
             return None
 
         # Parse the market time string

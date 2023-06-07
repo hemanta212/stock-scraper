@@ -2,8 +2,8 @@
 import sqlite3
 import os
 import json
-import loguru
 from datetime import datetime
+from src import logger
 from src.databases import DATA_DIR, ensure_dir
 
 
@@ -34,38 +34,6 @@ class SqliteDB:
         """
         )
         self.conn.commit()
-
-    def save(self, data):
-        self.cursor.execute(
-            """
-            INSERT INTO stockinfo (
-                name,
-                symbol,
-                marketcap,
-                price,
-                volume,
-                highprice,
-                lowprice,
-                open,
-                prevclose,
-                timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            (
-                data["name"],
-                data["symbol"],
-                data["marketcap"],
-                data["price"],
-                data["volume"],
-                data["highprice"],
-                data["lowprice"],
-                data["open"],
-                data["prevclose"],
-                data["timestamp"],
-            ),
-        )
-        self.conn.commit()
-        loguru.logger.debug(f":: SqliteDB: Saved {data['symbol']} to database.")
 
     def save_bulk(self, data):
         """Save data of multiple stocks in bulk"""
@@ -101,4 +69,8 @@ class SqliteDB:
             ],
         )
         self.conn.commit()
-        loguru.logger.debug(f":: SqliteDB: Saved {len(data)} stocks to database.")
+        logger.debug(f":: SqliteDB: Saved {len(data)} stocks to database.")
+        return self
+
+    def close(self):
+        self.conn.close()

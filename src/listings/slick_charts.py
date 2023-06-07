@@ -1,7 +1,8 @@
 from queue import deque
 import requests
 from bs4 import BeautifulSoup
-import loguru
+from src import logger
+from src.databases import cache_listings
 
 
 class Listing:
@@ -12,18 +13,22 @@ class Listing:
         table = soup.find(
             "table", {"class": "table table-hover table-borderless table-sm"}
         )
-        symbols = deque()
+        symbols_names = {}
         tr_blocks = table.find_all("tr")
         for block in tr_blocks:
             td_blocks = block.find_all("td")
             if len(td_blocks) == 0:
                 continue
+            full_name = td_blocks[1].text.strip()
             symbol = td_blocks[2].text.strip()
-            symbols.append(symbol)
+            symbols_names[symbol] = full_name
 
-        loguru.logger.debug(
-            f":: {self.__class__.__name__}: Found {len(symbols)} stocks."
+        logger.debug(
+            f":: {self.__class__.__name__}: Found {len(symbols_names)} stocks."
         )
+
+        cache_listings(symbols_names)
+        symbols = deque(symbols_names.keys())
         return symbols
 
     def get_headers(self):

@@ -1,9 +1,10 @@
 """Saves data to a json file"""
 
-import os
 import json
-import loguru
+import os
 from datetime import datetime
+
+from src import logger
 from src.databases import DATA_DIR, ensure_dir
 
 
@@ -18,14 +19,6 @@ class JsonDB:
             with open(self.dbpath, "w") as f:
                 json.dump([], f)
 
-    def save(self, data):
-        with open(self.dbpath, "r") as f:
-            db = json.load(f)
-            db.append(data)
-        with open(self.dbpath, "w") as f:
-            json.dump(db, f)
-        loguru.logger.debug(f":: JsonDB: Saved {data['symbol']} to database.")
-
     def save_bulk(self, data):
         """Save data of multiple stocks in bulk"""
         with open(self.dbpath, "r") as f:
@@ -33,4 +26,8 @@ class JsonDB:
             db.extend(data)
         with open(self.dbpath, "w") as f:
             json.dump(db, f)
-        loguru.logger.debug(f":: JsonDB: Saved {len(data)} stocks to database.")
+        logger.debug(f":: JsonDB: Saved {len(data)} stocks to database.")
+        return self
+
+    def close(self):
+        pass
