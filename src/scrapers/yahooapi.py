@@ -87,8 +87,8 @@ class YahooAPI:
             new_data[new_key] = value
 
         # Add remaining data
-        self.parse_date(stock_data)
-        new_data["timestamp"] = int(datetime.utcnow().timestamp())
+
+        new_data["timestamp"] = self.parse_date(stock_data)
         return new_data
 
     def test_connection(self):
@@ -212,30 +212,17 @@ class YahooAPI:
             return json.load(rf)
 
     def parse_date(self, data):
-        gmt_offset_milliseconds = data["gmtOffSetMilliseconds"]
         exchange_timezone_name = data["exchangeTimezoneName"]
         regular_market_time_raw = data["regularMarketTime"]["raw"]
 
-        # Convert gmt_offset_milliseconds to seconds
-        gmt_offset_seconds = gmt_offset_milliseconds / 1000
-
-        # Get the UTC time
-        utc_time = datetime.utcfromtimestamp(regular_market_time_raw)
-
-        # Create a time zone object
         exchange_timezone = pytz.timezone(exchange_timezone_name)
-
-        # Apply the GMT offset to the UTC time
-        exchange_time = utc_time + timedelta(seconds=gmt_offset_seconds)
-
-        # Set the time zone of the exchange time
-        exchange_time = exchange_timezone.localize(exchange_time)
-
         # Convert regular_market_time_raw to datetime
         regular_market_time = datetime.fromtimestamp(regular_market_time_raw)
-
         # Convert regular market time to the specified time zone
         regular_market_time = regular_market_time.astimezone(exchange_timezone)
 
-        print("Exchange Time:", exchange_time)
-        print("Regular Market Time:", regular_market_time)
+        # Create a UTC timezone
+        utc_timezone = pytz.timezone("UTC")
+        utc_timestamp = int(regular_market_time.astimezone(utc_timezone).timestamp())
+
+        return utc_timestamp

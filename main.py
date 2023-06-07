@@ -27,7 +27,7 @@ def main(symbols):
         for future in concurrent.futures.as_completed(futures):
             future.result()
 
-    # TODO: ONly do this if failures are present, refactor to separate fucntions
+    final_failures = {}
     # Second Pass: Retry failures with alternate scraper
     loguru.logger.info(":: Reprocessing Failures with alternate scraper")
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -35,18 +35,24 @@ def main(symbols):
         scrapers_symbols = match_scrapers_failures(scrapers, failures)
         futures = [
             executor.submit(
-                create_scraper, scraper, symbol_func, all_data, failures, use_proxy=True
+                create_scraper,
+                scraper,
+                symbol_func,
+                all_data,
+                final_failures,
+                use_proxy=True,
             )
             for scraper, symbol_func in scrapers_symbols.items()
+            if failures
         ]
         for future in concurrent.futures.as_completed(futures):
             future.result()
 
+    print(f":: Failed symbols: {final_failures}")
+
     if all_data:
         for db in dbs:
             db.save_bulk(all_data)
-
-    print(f":: Failed symbols: {failures}")
 
 
 def create_scraper(scraper_class, symbol_func, all_data, failures, use_proxy=True):
@@ -109,4 +115,5 @@ if __name__ == "__main__":
     symbols = symbols_fetcher().queue()
     loguru.logger.debug(f":: Fetching {len(symbols)} stocks from {listing_arg}")
 
+    symbols = deque(["NKE", "COHR"])
     main(symbols)

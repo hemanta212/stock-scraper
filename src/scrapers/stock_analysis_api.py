@@ -64,10 +64,17 @@ class StockAnalysisAPI:
             "o": "open",
             "cl": "prevclose",
         }
-        for key, value in conversion_map.items():
-            new_data[value] = stock_data.get(key)
+        for old_key, new_key in conversion_map.items():
+            value = stock_data.get(old_key)
+            if not value:
+                loguru.logger.error(
+                    f":: StockAnalysisAPI: {symbol} Failed to get {new_key}:{old_key}"
+                )
+                print(stock_data)
+                return None
+            new_data[new_key] = value
 
-        name = self.get_name(symbol)
+        name = self.get_name(symbol).strip()
         date = self.parse_date(stock_data.get("u"))
         if not name or not date:
             return None
@@ -152,10 +159,6 @@ class StockAnalysisAPI:
 
         # Create a UTC timezone
         utc_timezone = pytz.timezone("UTC")
-        utc_timestamp = date.astimezone(utc_timezone).timestamp()
-
-        # can easily convert back to orignal
-        # dt = datetime.fromtimestamp(utc_timestamp)
-        # dt.astimezone(exchange_timezone))
+        utc_timestamp = int(date.astimezone(utc_timezone).timestamp())
 
         return utc_timestamp
