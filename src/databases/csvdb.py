@@ -1,7 +1,7 @@
 import os
 import csv
 import loguru
-from . import DATA_DIR, ensure_dir
+from src.databases import DATA_DIR, ensure_dir
 
 
 class CsvDB:

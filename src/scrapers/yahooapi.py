@@ -7,16 +7,17 @@ from datetime import datetime
 
 import loguru
 
-from .cookie_getter import get_browser_cookie
-from .proxy import RequestProxy
+from src.scrapers.cookie_getter import get_browser_cookie
+from src.scrapers.proxy import RequestProxy
 
 
 class YahooAPI:
-    def __init__(self):
+    def __init__(self, use_proxy=False):
         self.BASE_URL = "https://query1.finance.yahoo.com/v7/finance/quote"
-        self.cookie_cred = self.load_default_cookie()
         self.working = True
-        self.session = RequestProxy()
+        self.session = RequestProxy(use_proxy=use_proxy)
+        self.cookie_file_path = "cookie.json"
+        self.cookie_cred = self.load_default_cookie()
         # refresh default cookie if not working
         if not self.test_connection():
             self.cookie_cred = self.regenerate_cookie()
@@ -143,7 +144,13 @@ class YahooAPI:
         return url, headers
 
     def regenerate_cookie(self):
+        loguru.logger.info(":: Yahoo API: Regenerating cookie")
         cookies = get_browser_cookie("https://finance.yahoo.com/quote/NKE")
+
+        if not cookies:
+            loguru.logger.error(":: Yahoo API: PlayWright Failed to get cookie")
+            return {"cookie": {}, "crumb": ""}
+
         domains = [".yahoo.com", ".finance.yahoo.com"]
         cookie_names = ["A1", "A3", "cmp", "PRF", "A1S"]
         valid_cookies = [
@@ -151,18 +158,21 @@ class YahooAPI:
             for c in cookies
             if c.get("domain") in domains and c.get("name") in cookie_names
         ]
+
         cookie = {c.get("name"): c.get("value") for c in valid_cookies}
         cookie_str = "; ".join([f"{k}={v}" for k, v in cookie.items()]).strip()
-        loguru.logger.info(f":: Yahoo API: New cookie {cookie_str}")
-
         crumb = self.get_crumb(cookie_str)
-        cookie_data = {"cookie": cookie, "crumb": crumb}
+        if not crumb:
+            loguru.logger.error(":: Yahoo API: Failed to get crumb")
+            return {"cookie": {}, "crumb": ""}
 
-        cookieFilePath = "cookie.json"
-        with open(cookieFilePath, "w") as f:
+        cookie_data = {"cookie": cookie, "crumb": crumb}
+        loguru.logger.info(f":: Yahoo API: Generated new cookie {cookie_str}")
+
+        with open(self.cookie_file_path, "w") as f:
             json.dump(cookie_data, f)
 
-        return {"cookie": cookie, "crumb": crumb}
+        return cookie_data
 
     def get_crumb(self, cookie):
         url = "https://query1.finance.yahoo.com/v1/test/getcrumb"
@@ -184,12 +194,13 @@ class YahooAPI:
             "Referrer-Policy": "no-referrer-when-downgrade",
         }
         response = self.session.request("get", url, headers=headers)
-        loguru.logger.info(f":: YahooApi: New Crumb {response.text}")
-        return response.text
+        if response.status_code == 200:
+            return response.text
+        else:
+            return None
 
     def load_default_cookie(self):
-        cookieFilePath = "cookie.json"
-        if not os.path.exists(cookieFilePath):
+        if not os.path.exists(self.cookie_file_path):
             return self.regenerate_cookie()
-        with open(cookieFilePath, "r") as rf:
+        with open(self.cookie_file_path) as rf:
             return json.load(rf)

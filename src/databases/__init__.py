@@ -9,6 +9,6 @@ def ensure_dir(path):
         os.makedirs(path)
 
 
-from .sqlitedb import SqliteDB
-from .csvdb import CsvDB
-from .jsondb import JsonDB
+from src.databases.sqlitedb import SqliteDB
+from src.databases.csvdb import CsvDB
+from src.databases.jsondb import JsonDB

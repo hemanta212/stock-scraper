@@ -4,7 +4,7 @@ import os
 import json
 import loguru
 from datetime import datetime
-from . import DATA_DIR, ensure_dir
+from src.databases import DATA_DIR, ensure_dir
 
 
 class SqliteDB:
