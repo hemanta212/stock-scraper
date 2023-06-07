@@ -1,17 +1,18 @@
+from queue import deque
 import requests
 from bs4 import BeautifulSoup
 import loguru
 
 
 class Listing:
-    def list(self):
+    def queue(self):
         headers = self.get_headers()
         response = requests.get(self.url, headers=headers)
         soup = BeautifulSoup(response.text, "html.parser")
         table = soup.find(
             "table", {"class": "table table-hover table-borderless table-sm"}
         )
-        symbols = []
+        symbols = deque()
         tr_blocks = table.find_all("tr")
         for block in tr_blocks:
             td_blocks = block.find_all("td")

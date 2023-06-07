@@ -1,3 +1,4 @@
+from queue import deque
 import json
 import requests
 import loguru
@@ -10,9 +11,9 @@ class NYSE:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
         }
 
-    def list(self):
+    def queue(self):
         # Change post data, until you get all the stocks
-        symbols = []
+        symbols = deque()
         for i in range(1, 10):
             data = {
                 "instrumentType": "EQUITY",
@@ -44,5 +45,5 @@ class NYSE:
 
         loguru.logger.debug(f":: NYSEListing: Found {len(symbols)} stocks.")
         with open("./data/nyse.json", "w") as wf:
-            json.dump(symbols, wf)
+            json.dump(list(symbols), wf)
         return symbols

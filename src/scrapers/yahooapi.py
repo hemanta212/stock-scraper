@@ -1,11 +1,23 @@
+"""
+Yahoo API
+- Loading the yahoo website, cookies are generated and stored in the browser.
+- Same cookies are transmited over to the endpoint during request
+- However, another element, crumb is sent along with the request
+- This crumb is generated from the cookie and another endpoint.
+- Once, crumb and cookie is available the request can be made.
+
+NOTE: The cookie surprisingly does not expire, so it can be stored and reused
+This means, we dont have to spin up a playwright instance as often.
+"""
+import json
 import os
 import sys
-import json
 import urllib.parse
+from datetime import datetime, timedelta
 from pprint import pprint
-from datetime import datetime
 
 import loguru
+import pytz
 
 from src.scrapers.cookie_getter import get_browser_cookie
 from src.scrapers.proxy import RequestProxy
@@ -75,23 +87,14 @@ class YahooAPI:
             new_data[new_key] = value
 
         # Add remaining data
+        self.parse_date(stock_data)
         new_data["timestamp"] = int(datetime.utcnow().timestamp())
         return new_data
 
-    def test_connection(self, tries=0):
+    def test_connection(self):
         loguru.logger.info(":: Testing connection to Yahoo API")
-        url, headers = self.build_request("NKE")
-
-        try:
-            response = self.session.request("get", url, headers=headers)
-        except Exception as e:
-            loguru.logger.error(f":: Unknown Error: {e}")
-            return False
-
-        if (
-            response.status_code == 200
-            and response.json()["quoteResponse"]["error"] is None
-        ):
+        data = self.get_data("NKE")
+        if data:
             loguru.logger.info(":: Connection to Yahoo API successful")
             return True
         else:
@@ -112,6 +115,9 @@ class YahooAPI:
             "regularMarketDayLow",
             "regularMarketOpen",
             "regularMarketPreviousClose",
+            "gmtOffSetMilliseconds",
+            "exchangeTimezoneName",
+            "regularMarketTime",
         ]
         query_params = {
             "symbols": symbol,
@@ -204,3 +210,32 @@ class YahooAPI:
             return self.regenerate_cookie()
         with open(self.cookie_file_path) as rf:
             return json.load(rf)
+
+    def parse_date(self, data):
+        gmt_offset_milliseconds = data["gmtOffSetMilliseconds"]
+        exchange_timezone_name = data["exchangeTimezoneName"]
+        regular_market_time_raw = data["regularMarketTime"]["raw"]
+
+        # Convert gmt_offset_milliseconds to seconds
+        gmt_offset_seconds = gmt_offset_milliseconds / 1000
+
+        # Get the UTC time
+        utc_time = datetime.utcfromtimestamp(regular_market_time_raw)
+
+        # Create a time zone object
+        exchange_timezone = pytz.timezone(exchange_timezone_name)
+
+        # Apply the GMT offset to the UTC time
+        exchange_time = utc_time + timedelta(seconds=gmt_offset_seconds)
+
+        # Set the time zone of the exchange time
+        exchange_time = exchange_timezone.localize(exchange_time)
+
+        # Convert regular_market_time_raw to datetime
+        regular_market_time = datetime.fromtimestamp(regular_market_time_raw)
+
+        # Convert regular market time to the specified time zone
+        regular_market_time = regular_market_time.astimezone(exchange_timezone)
+
+        print("Exchange Time:", exchange_time)
+        print("Regular Market Time:", regular_market_time)

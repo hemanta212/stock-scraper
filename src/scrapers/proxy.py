@@ -2,7 +2,7 @@
 A wrapper around requests to handle proxy rotation and retries.
 - Proxy and rotation is handled by free-proxy library.
 - FreeProxy will test and return only working proxies.
-- As Fallback, we do 3 tries with the proxy before disabling it.
+- As Fallback, we do max retries with the proxy before disabling it.
 """
 
 import sys
@@ -46,7 +46,7 @@ class RequestProxy:
 
         return response
 
-    def set_proxy(self):
+    def set_proxy(self, tries=0):
         loguru.logger.debug(f":: Proxy: Getting new proxy, please wait..")
         try:
             proxy = FreeProxy(https=True, anonym=True).get()
@@ -54,8 +54,10 @@ class RequestProxy:
             return proxy
         except FreeProxyException as e:
             loguru.logger.error(f":: Proxy Error: {e}")
-            self.disabled = True
-            return None
+            if tries == 3:  # use 3 for no available proxy errors
+                self.disabled = True
+                return None
+            return self.set_proxy(tries=tries + 1)
 
 
 class DisabledProxyResponse(requests.Response):
@@ -63,5 +65,5 @@ class DisabledProxyResponse(requests.Response):
         super().__init__()
         self.status_code = 407
 
-        def json(self):
-            return {"error": "Proxy Disabled"}
+    def json(self):
+        return {"error": "Proxy Disabled"}

@@ -12,6 +12,7 @@ psycopg2 = "^2.9.6"
 playwright = "^1.34.0"
 stockex = "^0.1.2"
 free-proxy = "^1.1.1"
+pytz = "^2023.3"
 
 
 [tool.poetry.group.dev.dependencies]
