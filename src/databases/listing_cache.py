@@ -3,6 +3,7 @@ A sqlite db to keep record of fullnames of stocks with their symbols
 """
 import os
 import sqlite3
+
 from src import logger
 from src.databases import DATA_DIR, ensure_dir
 

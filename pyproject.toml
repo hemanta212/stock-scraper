@@ -24,7 +24,12 @@ pylint = "^2.17.4"
 pylsp-mypy = "^0.6.7"
 pyls-isort = "^0.2.2"
 pylsp-rope = "^0.1.11"
+autoflake = "^2.1.1"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.isort]
+# make it compatible with black
+profile = "black" 

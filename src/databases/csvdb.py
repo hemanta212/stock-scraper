@@ -1,5 +1,6 @@
-import os
 import csv
+import os
+
 from src import logger
 from src.databases import DATA_DIR, ensure_dir
 

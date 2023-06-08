@@ -2,7 +2,6 @@
 Validate the stock information as it is scraped
 """
 from src import logger
-from src.databases import SqliteDB
 
 
 def is_valid(stock_info):

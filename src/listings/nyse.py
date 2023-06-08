@@ -1,5 +1,5 @@
 from queue import deque
-import json
+
 import requests
 
 from src import logger

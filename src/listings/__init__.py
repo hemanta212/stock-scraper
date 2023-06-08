@@ -1,5 +1,5 @@
-from src.listings.slick_charts import SandP500, Nasdaq100, DowJones30
 from src.listings.nyse import NYSE
+from src.listings.slick_charts import DowJones30, Nasdaq100, SandP500
 
 listings_map = {
     "dowjones30": DowJones30,

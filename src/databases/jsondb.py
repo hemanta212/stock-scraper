@@ -2,7 +2,6 @@
 
 import json
 import os
-from datetime import datetime
 
 from src import logger
 from src.databases import DATA_DIR, ensure_dir

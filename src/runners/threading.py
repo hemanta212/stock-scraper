@@ -15,8 +15,7 @@ We create and execute multiple tasks, out of same function instance using thread
 """
 
 import concurrent.futures
-import math
-from functools import partial
+from pprint import pformat
 from queue import deque
 
 from src import logger
@@ -37,7 +36,7 @@ def parallel_executor(instance_func, scrapers, symbol_funcs):
             future.result()
 
     failures = result["failures"]
-    logger.debug(f":: Failed symbols {len(failures)}: {failures}")
+    logger.debug(f":: Failed symbols {len(failures)}: {pformat(failures)}")
 
     final_result = {
         "data": result["data"],

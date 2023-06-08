@@ -1,8 +1,7 @@
 """SQLITE DATABASE"""
-import sqlite3
 import os
-import json
-from datetime import datetime
+import sqlite3
+
 from src import logger
 from src.databases import DATA_DIR, ensure_dir
 

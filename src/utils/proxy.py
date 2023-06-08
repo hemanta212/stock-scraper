@@ -5,7 +5,6 @@ A wrapper around requests to handle proxy rotation and retries.
 - As Fallback, we do max retries with the proxy before disabling it.
 """
 
-import sys
 
 import requests
 from fp.errors import FreeProxyException

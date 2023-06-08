@@ -1,3 +1,11 @@
+"""
+Host both database utilities and database classes for easier import in other files
+
+Warning, circular imports, need to be careful. The ordering is important
+- Listing cache imports datadir, ensuredir so it needs to be imported after
+
+isort:skip_file
+"""
 import os
 
 # Storage directory

@@ -1,14 +1,16 @@
 """
 StockAnalysis.com API
+- The api returns json response with single char obuscated keys.
+- API doesnot require any cookies or auth.
+- However, it is little slower and needs rate limiting.
+- Response doesnot contain the full name of stock.
+- We primarily use listings cache, then fallback to just scraping the name from website.
 """
-import json
-import os
+
 import re
-import sys
 import time
-import urllib.parse
-from datetime import datetime, timedelta
-from pprint import pprint
+from datetime import datetime
+from pprint import pformat
 
 import lxml.html
 import pytz
@@ -16,7 +18,6 @@ import requests
 
 from src import logger
 from src.databases import ListingCache
-from src.utils.cookie_getter import get_browser_cookie
 from src.utils.proxy import RequestProxy
 
 
@@ -75,7 +76,7 @@ class StockAnalysisAPI:
                 logger.error(
                     f":: StockAnalysisAPI: {symbol} Failed to get {new_key}:{old_key}"
                 )
-                print(stock_data)
+                logger.debug(pformat(stock_data))
                 return None
             new_data[new_key] = value
 

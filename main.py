@@ -1,6 +1,6 @@
 import sys
-from queue import deque
 from functools import partial
+from pprint import pformat
 
 from src import logger
 from src.databases import CsvDB, JsonDB, SqliteDB
@@ -12,15 +12,11 @@ from src.utils.validator import is_valid
 
 def main(symbols):
     scrapers = (
-        partial(YahooAPI, rate_limit=0.2),
-        partial(StockAnalysisAPI, rate_limit=0.3),
         partial(YahooAPI, use_proxy=True),
         partial(StockAnalysisAPI, use_proxy=True, rate_limit=0.3),
     )
     symbols_access_funcs = (
         symbols.pop,
-        symbols.pop,
-        symbols.popleft,
         symbols.popleft,
     )
 
@@ -29,7 +25,7 @@ def main(symbols):
     )
 
     print(f":: Scraped {len(all_data)} stocks data.")
-    print(f":: Failed stocks {len(failures)}: {failures}")
+    print(f":: Failed stocks {len(failures)}: {pformat(failures)}")
 
     dbs = (
         CsvDB,

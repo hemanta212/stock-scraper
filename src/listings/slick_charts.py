@@ -1,6 +1,8 @@
 from queue import deque
+
 import requests
 from bs4 import BeautifulSoup
+
 from src import logger
 from src.databases import cache_listings
 

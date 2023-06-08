@@ -11,11 +11,10 @@ This means, we dont have to spin up a playwright instance as often.
 """
 import json
 import os
-import sys
 import time
 import urllib.parse
-from datetime import datetime, timedelta
-from pprint import pprint
+from datetime import datetime
+from pprint import pformat
 
 import pytz
 
@@ -81,7 +80,7 @@ class YahooAPI:
             value = stock_data.get(old_key)
             if not value:
                 logger.error(f":: YahooApi {symbol}: Failed to get {old_key}")
-                print(stock_data)
+                logger.debug(pformat(stock_data))
                 return None
 
             # for values with multi forms, prefer the raw form
