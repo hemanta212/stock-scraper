@@ -15,6 +15,7 @@ We create and execute multiple tasks, out of same function instance using thread
 """
 
 import concurrent.futures
+from functools import partial
 from pprint import pformat
 from queue import deque
 
@@ -26,11 +27,16 @@ def parallel_executor(instance_func, scrapers, symbol_funcs):
         "data": [],
         "failures": {},
     }
+
     # check if the symbol_func that fetches next symbol itself is empty
     # Cancellation is only used for proxy scrapers
     # To stop the time waste searching and rotating free proxies when queue is already empty
+    def cancel_func(symbol_func, scraper):
+        print("EE", len(symbol_func.__self__))
+        return len(symbol_func.__self__) == 0 and scraper.use_proxy
+
     cancel_funcs = [
-        lambda: len(symbol_func.__self__) == 0 and scraper.use_proxy
+        partial(cancel_func, symbol_func, scraper)
         for scraper, symbol_func in zip(scrapers, symbol_funcs)
     ]
 

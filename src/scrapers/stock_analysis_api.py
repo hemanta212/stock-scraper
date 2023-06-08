@@ -22,8 +22,9 @@ from src.utils.proxy import RequestProxy
 
 
 class StockAnalysisAPI:
-    def __init__(self, use_proxy=False, rate_limit=0):
+    def __init__(self, batch_size=1, use_proxy=False, rate_limit=0):
         self.BASE_URL = "https://stockanalysis.com/api/quotes/s/{}"
+        self.batch_size = batch_size
         self.use_proxy = use_proxy
         self.rate_limit = rate_limit
 
@@ -36,7 +37,15 @@ class StockAnalysisAPI:
                 logger.error(":: Setting Scraper as Dead")
                 self.working = False
 
-    def get_data(self, symbol, cancel_func=lambda: False):
+    def get_data(self, symbols, cancel_func=lambda: False):
+        """
+        This API doesnot support batch requests.
+        This method is wrapper for interface consistency.
+        """
+        data = self._get_data(symbols[0], cancel_func=cancel_func)
+        return [data]
+
+    def _get_data(self, symbol, cancel_func=lambda: False):
         if self.rate_limit:
             time.sleep(self.rate_limit)
 
@@ -100,9 +109,9 @@ class StockAnalysisAPI:
         logger.info(":: Testing connection to StockAnalysis API")
 
         try:
-            data = self.get_data("NKE")
+            data = self.get_data(["NKE"])
         except Exception as e:
-            logger.error(e)
+            logger.exception(e)
             data = None
 
         if data:
@@ -161,7 +170,7 @@ class StockAnalysisAPI:
             name = title[0].text_content().split("(")[0].strip()
             return name
         except Exception as e:
-            logger.error(f":: StockAnalysisAPI getting name failed: {e} {title}")
+            logger.exception(f":: StockAnalysisAPI getting name failed: {e} {title}")
             return None
 
     def parse_date(self, raw_date):

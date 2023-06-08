@@ -28,11 +28,6 @@ class RequestProxy:
         if self.disabled:
             return self.disabled_response
 
-        if cancel_func():
-            logger.error(f":: Cancellation signal received.")
-            self.disabled = True
-            return self.disabled_response
-
         if self.proxy:
             kwargs["proxies"] = {"http": self.proxy, "https": self.proxy}
         else:
@@ -41,7 +36,7 @@ class RequestProxy:
         try:
             response = self.session.request(method, url, timeout=timeout, **kwargs)
         except Exception as e:
-            if tries == self.max_retries:
+            if tries == self.max_retries or cancel_func():
                 logger.error(f":: Proxy Maxed out: Disabling scraper instance")
                 self.disabled = True
                 return self.disabled_response
@@ -62,7 +57,8 @@ class RequestProxy:
             return proxy
         except FreeProxyException as e:
             logger.error(f":: Proxy Error: {e}")
-            if tries == 2 or cancel_func():  # use 2 for no available proxy errors
+            print("Cancel func says", cancel_func())
+            if tries >= 3 or cancel_func():  # use 3 for no available proxy errors
                 self.disabled = True
                 return None
             return self.set_proxy(cancel_func=cancel_func, tries=tries + 1)

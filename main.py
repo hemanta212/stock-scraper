@@ -8,7 +8,7 @@ from src.databases import PostgresDB, SqliteDB
 from src.listings import listings_map
 from src.runners.thread import parallel_executor
 from src.scrapers import StockAnalysisAPI, YahooAPI
-from src.utils.validator import is_valid
+from src.utils.validator import is_valid_stock
 
 
 def main(symbols):
@@ -17,10 +17,10 @@ def main(symbols):
         SqliteDB,
     )
     scrapers = (
-        YahooAPI(use_proxy=True, rate_limit=0.3),
-        YahooAPI(rate_limit=0.5),
+        YahooAPI(rate_limit=1.0),
+        YahooAPI(use_proxy=True, rate_limit=0.5),
         StockAnalysisAPI(use_proxy=True, rate_limit=0.3),
-        StockAnalysisAPI(rate_limit=0.2),
+        StockAnalysisAPI(rate_limit=0.3),
     )
     symbol_funcs = (
         symbols.pop,
@@ -72,25 +72,32 @@ def create_scraper(scraper, symbol_func, result, cancel_func):
             logger.debug(f":: Cancellation Signal {scraper}: No more symbols to scrape")
             break
 
-        try:
-            symbol = symbol_func()
-        except IndexError:
-            # Deque empty
+        symbols = []
+        for _ in range(scraper.batch_size):
+            try:
+                symbols.append(symbol_func())
+            except IndexError:
+                # Deque empty
+                logger.debug(f":: {scraper} Queue empty: No more symbols to scrape")
+                break
+
+        if not symbols:
             break
 
         try:
-            data = scraper.get_data(symbol, cancel_func=cancel_func)
+            data = scraper.get_data(symbols, cancel_func=cancel_func)
         except Exception as e:
-            logger.error(f":: {scraper}: {e}")
-            data = None
+            logger.exception(f":: {scraper}: {e}")
+            data = [None for _ in symbols]
 
-        if data and is_valid(data):
-            result["data"].append(data)
-            index += 1
-            logger.debug(f":: {scraper}: Added {symbol} | {index}")
-        else:
-            logger.warning(f":: {scraper}: Failed {symbol} | {index}")
-            result["failures"].update({symbol: repr(scraper)})
+        for stock_data, symbol in zip(data, symbols):
+            if stock_data and is_valid_stock(stock_data):
+                result["data"].append(stock_data)
+                index += 1
+                logger.debug(f":: {scraper}: Added {symbol} | {index}")
+            else:
+                logger.warning(f":: {scraper}: Failed {symbol} | {index}")
+                result["failures"].update({symbol: repr(scraper)})
 
 
 if __name__ == "__main__":
@@ -108,8 +115,9 @@ if __name__ == "__main__":
     try:
         symbols = symbols_fetcher().queue()
     except Exception as e:
-        logger.error(f":: Failed getting listings for {listing_arg} {e}")
+        logger.exception(f":: Failed getting listings for {listing_arg} {e}")
         sys.exit(1)
 
     logger.debug(f":: Fetching {len(symbols)} stocks from {listing_arg}")
+
     main(symbols)

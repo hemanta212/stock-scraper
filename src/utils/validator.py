@@ -4,7 +4,7 @@ Validate the stock information as it is scraped
 from src import logger
 
 
-def is_valid(stock_info):
+def is_valid_stock(stock_info):
     field_types = {
         "name": str,
         "symbol": str,

@@ -21,11 +21,13 @@ import pytz
 from src import logger
 from src.utils.cookie_getter import get_browser_cookie
 from src.utils.proxy import RequestProxy
+from src.utils.validator import is_valid_stock
 
 
 class YahooAPI:
-    def __init__(self, use_proxy=False, rate_limit=0):
+    def __init__(self, batch_size=10, use_proxy=False, rate_limit=0):
         self.BASE_URL = "https://query1.finance.yahoo.com/v7/finance/quote"
+        self.batch_size = batch_size
         self.use_proxy = use_proxy
         self.rate_limit = rate_limit
         self.cookie_file_path = "cookie.json"
@@ -42,14 +44,30 @@ class YahooAPI:
                 logger.error(":: Setting Yahoo API as Dead")
                 self.working = False
 
-    def get_data(self, symbol, cancel_func=lambda: False):
+    def get_data(self, symbols, cancel_func=lambda: False):
+        """
+        Receives and Tries multiple symbols at once
+        For those symbols that failed, tries one by one
+        Then returns all data
+        """
+        data = self._get_data(symbols, cancel_func=cancel_func)
+        result = []
+        for stock_data, symbol in zip(data, symbols):
+            if stock_data and is_valid_stock(stock_data):
+                result.append(stock_data)
+            else:
+                stock_data = self._get_data([symbol], cancel_func=cancel_func)
+                result.append(stock_data[0])
+        return data
+
+    def _get_data(self, symbols, cancel_func=lambda: False):
         if self.rate_limit:
             time.sleep(self.rate_limit)
 
         # normalize symbol eg BRK.B -> BRK-B
-        symbol = symbol.replace(".", "-")
+        symbols = [symbol.replace(".", "-") for symbol in symbols]
 
-        url, headers = self.build_request(symbol)
+        url, headers = self.build_request(symbols)
         response = self.session.request(
             "get", url, headers=headers, cancel_func=cancel_func
         )
@@ -60,56 +78,61 @@ class YahooAPI:
             api_error = data["quoteResponse"]["error"]
             result_data = data["quoteResponse"]["result"]
             if api_error is None and result_data:
-                return self.convert_data(result_data[0], symbol)
+                return self.convert_data(result_data, symbols)
 
         if response.status_code == 407 or self.session.disabled:
             logger.error(f":: YahooApi Proxy Failure, making scraper dead")
             self.working = False
 
         logger.error(
-            f":: YahooApi Failed {symbol}: {response.status_code} {response.text} {api_error}"
+            f":: YahooApi Failed {symbols}: {response.status_code} {response.text} {api_error}"
         )
         return None
 
-    def convert_data(self, stock_data, symbol):
-        # favor longer name and fallback to shorter name
-        stock_data["name"] = stock_data.get("longName") or stock_data.get("shortName")
+    def convert_data(self, stock_data, symbols):
+        results = []
+        for stock_info, symbol in zip(stock_data, symbols):
+            # favor longer name and fallback to shorter name
+            stock_info["name"] = stock_info.get("longName") or stock_info.get(
+                "shortName"
+            )
 
-        conversion_map = {
-            "name": "name",
-            "marketCap": "marketcap",
-            "regularMarketPrice": "price",
-            "regularMarketVolume": "volume",
-            "regularMarketDayHigh": "highprice",
-            "regularMarketDayLow": "lowprice",
-            "regularMarketOpen": "open",
-            "regularMarketPreviousClose": "prevclose",
-        }
-        new_data = {}
-        for old_key, new_key in conversion_map.items():
-            value = stock_data.get(old_key)
-            if not value:
-                logger.error(f":: YahooApi {symbol}: Failed to get {old_key}")
-                logger.debug(pformat(stock_data))
-                return None
-
-            # for values with multi forms, prefer the raw form
-            if isinstance(value, dict):
-                value = value.get("raw")
-            new_data[new_key] = value
-
-        # Add remaining data
-        new_data["symbol"] = symbol
-        new_data["timestamp"] = self.parse_date(stock_data)
-        return new_data
+            conversion_map = {
+                "name": "name",
+                "marketCap": "marketcap",
+                "regularMarketPrice": "price",
+                "regularMarketVolume": "volume",
+                "regularMarketDayHigh": "highprice",
+                "regularMarketDayLow": "lowprice",
+                "regularMarketOpen": "open",
+                "regularMarketPreviousClose": "prevclose",
+            }
+            new_data = {}
+            for old_key, new_key in conversion_map.items():
+                value = stock_info.get(old_key)
+                if not value:
+                    logger.error(f":: YahooApi {symbol}: Failed to get {old_key}")
+                    logger.debug(pformat(stock_info))
+                    results.append(None)
+                    break
+                # for values with multi forms, prefer the raw form
+                if isinstance(value, dict):
+                    value = value.get("raw")
+                new_data[new_key] = value
+            else:
+                # Add remaining data
+                new_data["symbol"] = symbol
+                new_data["timestamp"] = self.parse_date(stock_info)
+                results.append(new_data)
+        return results
 
     def test_connection(self):
         logger.info(":: Testing connection to Yahoo API")
 
         try:
-            data = self.get_data("NKE")
+            data = self.get_data(["NKE"])
         except Exception as e:
-            logger.error(e)
+            logger.exception(e)
             data = None
 
         if data:
@@ -119,7 +142,7 @@ class YahooAPI:
             logger.error(":: Connection to Yahoo API failed")
             return False
 
-    def build_request(self, symbol):
+    def build_request(self, symbols):
         crumb, cookie_data = self.cookie_cred["crumb"], self.cookie_cred["cookie"]
         cookie = "; ".join([f"{k}={v}" for k, v in cookie_data.items()]).strip()
         fields = [
@@ -138,7 +161,7 @@ class YahooAPI:
             "regularMarketTime",
         ]
         query_params = {
-            "symbols": symbol,
+            "symbols": ",".join(symbols),
             "formatted": "true",
             "crumb": crumb,
             "lang": "en-US",
@@ -152,7 +175,7 @@ class YahooAPI:
             "Accept": "*/*",
             "Accept-Language": "en-US,en;q=0.5",
             "Accept-Encoding": "gzip, deflate, br",
-            "Referer": f"https://finance.yahoo.com/quote/{symbol}",
+            "Referer": "https://finance.yahoo.com",
             "Origin": "https://finance.yahoo.com",
             "DNT": "1",
             "Connection": "keep-alive",
