@@ -26,11 +26,21 @@ def parallel_executor(instance_func, scrapers, symbol_funcs):
         "data": [],
         "failures": {},
     }
+    # check if the symbol_func that fetches next symbol itself is empty
+    # Cancellation is only used for proxy scrapers
+    # To stop the time waste searching and rotating free proxies when queue is already empty
+    cancel_funcs = [
+        lambda: len(symbol_func.__self__) == 0 and scraper.use_proxy
+        for scraper, symbol_func in zip(scrapers, symbol_funcs)
+    ]
+
     # Initial Pass
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = [
-            executor.submit(instance_func, scraper, symbol_func, result)
-            for scraper, symbol_func in zip(scrapers, symbol_funcs)
+            executor.submit(instance_func, scraper, symbol_func, result, cancel_func)
+            for scraper, symbol_func, cancel_func in zip(
+                scrapers, symbol_funcs, cancel_funcs
+            )
         ]
         for future in concurrent.futures.as_completed(futures):
             future.result()
@@ -42,12 +52,17 @@ def parallel_executor(instance_func, scrapers, symbol_funcs):
         "data": result["data"],
         "failures": {},
     }
-    # Second Pass: Retry failures with alternate scraper
+
+    # Second Pass: Retry failures with alternate scraper, and disable cancellation
+    disabled_cancel_func = lambda: False
     logger.info(":: Reprocessing failures with alternate scraper")
+
     with concurrent.futures.ThreadPoolExecutor() as executor:
         scrapers_symbols = match_scrapers_failures(scrapers, failures)
         futures = [
-            executor.submit(instance_func, scraper, symbol_func, final_result)
+            executor.submit(
+                instance_func, scraper, symbol_func, final_result, disabled_cancel_func
+            )
             for scraper, symbol_func in scrapers_symbols.items()
             if failures
         ]
@@ -62,13 +77,35 @@ def match_scrapers_failures(scrapers, failures):
     When a stock fetch fails, its symbol and scraper used gets documented
     Here we try to read it, and assign symbol to different scraper
     """
+    # list of scrapers ['YahooAPI', 'StockAnalaysisAPI']
+    scraper_names = list(set([repr(scraper) for scraper in scrapers]))
+
+    # map name to deque, and fill the deque
+    scraper_names_map = {scraper_name: deque() for scraper_name in scraper_names}
+
+    # makes {'sym1': 'A', 'sym2': 'A'] -> {'A': (sym1, sym2)}
+    for symbol, scraper_name in failures.items():
+        scraper_names_map[scraper_name].append(symbol)
+
     scrapers_failures = {}
+    # assign deques to other scraper, which is one index above.
     for scraper in scrapers:
-        # scraper is a partial
-        symbols = [
-            symbol
-            for symbol, scraper_name in failures.items()
-            if repr(scraper) != scraper_name
+        scraper_name = repr(scraper)
+
+        # Find key whose deque values to take
+        assign_index = (scraper_names.index(scraper_name) + 1) % len(scraper_names)
+        assign_key = scraper_names[assign_index]
+        deque_symbol = scraper_names_map[assign_key]
+
+        # Assign symbol func for scraper
+        # If non proxy version of scraper available donot assign proxy version
+        is_proxy = scraper.use_proxy
+        non_proxy_available = [
+            s for s in scrapers if repr(s) == repr(scraper) and not s.use_proxy
         ]
-        scrapers_failures[scraper] = deque(symbols).pop
+        if is_proxy and non_proxy_available:
+            continue
+        else:
+            scrapers_failures[scraper] = deque_symbol.pop
+
     return scrapers_failures

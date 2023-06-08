@@ -13,6 +13,7 @@ free-proxy = "^1.1.1"
 pytz = "^2023.3"
 loguru = "^0.7.0"
 bs4 = "^0.0.1"
+python-dotenv = "^1.0.0"
 
 
 [tool.poetry.group.dev.dependencies]

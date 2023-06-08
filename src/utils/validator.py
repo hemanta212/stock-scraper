@@ -20,6 +20,8 @@ def is_valid(stock_info):
 
     for field, expected_types in field_types.items():
         value = stock_info.get(field)
+
+        # type check, null check
         if not isinstance(value, expected_types):
             expected_types_str = " or ".join(t.__name__ for t in expected_types)
             logger.error(
@@ -27,4 +29,23 @@ def is_valid(stock_info):
                 f"Expected: {expected_types_str}, Got: {type(value).__name__}:'{value}' "
             )
             return False
+
+        # Value <= 0 Check
+        if issubclass(float, expected_types) or issubclass(int, expected_types):
+            if value <= float(0):
+                logger.error(
+                    f":: Validation Error: Invalid value for '{field}'. "
+                    f"Expected: > 0, Got: {value}"
+                )
+                return False
+
+        # Empty string and N/A check
+        if issubclass(str, expected_types):
+            if not value.strip() or value.strip().upper() == "N/A":
+                logger.error(
+                    f":: Validation Error: Invalid value for '{field}'. "
+                    f"Expected: non-empty string, Got: '{value}'"
+                )
+                return False
+
     return True

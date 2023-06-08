@@ -26,11 +26,14 @@ from src.utils.proxy import RequestProxy
 class YahooAPI:
     def __init__(self, use_proxy=False, rate_limit=0):
         self.BASE_URL = "https://query1.finance.yahoo.com/v7/finance/quote"
-        self.session = RequestProxy(use_proxy=use_proxy)
+        self.use_proxy = use_proxy
         self.rate_limit = rate_limit
         self.cookie_file_path = "cookie.json"
-        self.cookie_cred = self.load_default_cookie()
+
+    def setup(self):
         self.working = True
+        self.session = RequestProxy(use_proxy=self.use_proxy)
+        self.cookie_cred = self.load_default_cookie()
         # refresh default cookie if not working
         if not self.test_connection():
             self.cookie_cred = self.regenerate_cookie()
@@ -39,14 +42,17 @@ class YahooAPI:
                 logger.error(":: Setting Yahoo API as Dead")
                 self.working = False
 
-    def get_data(self, symbol):
+    def get_data(self, symbol, cancel_func=lambda: False):
         if self.rate_limit:
             time.sleep(self.rate_limit)
+
         # normalize symbol eg BRK.B -> BRK-B
         symbol = symbol.replace(".", "-")
 
         url, headers = self.build_request(symbol)
-        response = self.session.request("get", url, headers=headers)
+        response = self.session.request(
+            "get", url, headers=headers, cancel_func=cancel_func
+        )
         api_error = None
 
         if response.status_code == 200:
@@ -55,6 +61,10 @@ class YahooAPI:
             result_data = data["quoteResponse"]["result"]
             if api_error is None and result_data:
                 return self.convert_data(result_data[0], symbol)
+
+        if response.status_code == 407 or self.session.disabled:
+            logger.error(f":: YahooApi Proxy Failure, making scraper dead")
+            self.working = False
 
         logger.error(
             f":: YahooApi Failed {symbol}: {response.status_code} {response.text} {api_error}"
@@ -239,4 +249,6 @@ class YahooAPI:
         return self.__class__.__name__
 
     def __str__(self):
-        return f"{self.__class__.__name__} {'(PROXY)' if self.session.proxy else ''}".strip()
+        return (
+            f"{self.__class__.__name__} {'(PROXY)' if self.use_proxy else ''}".strip()
+        )

@@ -41,24 +41,6 @@ class ListingCache:
 
     def save(self, data: dict):
         """
-        Take a stock name and symbol and update the database
-        Check if already present, if not then add
-        """
-        self.cursor.execute(
-            """
-            INSERT OR IGNORE INTO stocklist (
-                symbol,
-                name
-            ) VALUES (?, ?)
-        """,
-            (data["symbol"], data["name"]),
-        )
-        self.conn.commit()
-        logger.debug(f":: ListDB: Saved {data['symbol']} to database.")
-        return self
-
-    def save_bulk(self, data: dict):
-        """
         Take a dictionary of symbol and name and update the database
         Check if already present, if not then add
         """

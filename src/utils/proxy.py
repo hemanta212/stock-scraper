@@ -22,8 +22,15 @@ class RequestProxy:
         # once disabled the request method always returns a 407
         self.disabled_response = DisabledProxyResponse()
 
-    def request(self, method, url, tries=0, **kwargs):
+    def request(
+        self, method, url, cancel_func=lambda: False, tries=0, timeout=5, **kwargs
+    ):
         if self.disabled:
+            return self.disabled_response
+
+        if cancel_func():
+            logger.error(f":: Cancellation signal received.")
+            self.disabled = True
             return self.disabled_response
 
         if self.proxy:
@@ -32,7 +39,7 @@ class RequestProxy:
             kwargs["proxies"] = None
 
         try:
-            response = self.session.request(method, url, **kwargs)
+            response = self.session.request(method, url, timeout=timeout, **kwargs)
         except Exception as e:
             if tries == self.max_retries:
                 logger.error(f":: Proxy Maxed out: Disabling scraper instance")
@@ -40,12 +47,14 @@ class RequestProxy:
                 return self.disabled_response
             else:
                 logger.error(f":: Proxy Error: {self.proxy}, {e} Rotating")
-                self.set_proxy()
-                return self.request(method, url, tries=tries + 1, **kwargs)
+                self.proxy = self.set_proxy(cancel_func)
+                return self.request(
+                    method, url, tries=tries + 1, timeout=timeout, **kwargs
+                )
 
         return response
 
-    def set_proxy(self, tries=0):
+    def set_proxy(self, cancel_func=lambda: False, tries=0):
         logger.debug(f":: Proxy: Getting new proxy, please wait..")
         try:
             proxy = FreeProxy(https=True, anonym=True).get()
@@ -53,10 +62,10 @@ class RequestProxy:
             return proxy
         except FreeProxyException as e:
             logger.error(f":: Proxy Error: {e}")
-            if tries == 3:  # use 3 for no available proxy errors
+            if tries == 2 or cancel_func():  # use 2 for no available proxy errors
                 self.disabled = True
                 return None
-            return self.set_proxy(tries=tries + 1)
+            return self.set_proxy(cancel_func=cancel_func, tries=tries + 1)
 
 
 class DisabledProxyResponse(requests.Response):

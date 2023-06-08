@@ -24,21 +24,26 @@ from src.utils.proxy import RequestProxy
 class StockAnalysisAPI:
     def __init__(self, use_proxy=False, rate_limit=0):
         self.BASE_URL = "https://stockanalysis.com/api/quotes/s/{}"
+        self.use_proxy = use_proxy
         self.rate_limit = rate_limit
-        self.session = RequestProxy(use_proxy=use_proxy)
+
+    def setup(self):
         self.working = True
+        self.session = RequestProxy(use_proxy=self.use_proxy)
         if not self.test_connection():
-            self.session = RequestProxy(use_proxy=use_proxy)
+            self.session = RequestProxy(use_proxy=self.use_proxy)
             if not self.test_connection():
                 logger.error(":: Setting Scraper as Dead")
                 self.working = False
 
-    def get_data(self, symbol):
+    def get_data(self, symbol, cancel_func=lambda: False):
         if self.rate_limit:
             time.sleep(self.rate_limit)
 
         url, headers = self.BASE_URL.format(symbol), self.get_headers()
-        response = self.session.request("get", url, headers=headers)
+        response = self.session.request(
+            "get", url, headers=headers, cancel_func=cancel_func
+        )
 
         data = None
         try:
@@ -51,6 +56,9 @@ class StockAnalysisAPI:
 
         if response.status_code == 200:
             return self.convert_data(data.get("data"), symbol)
+        elif response.status_code == 407 or self.session.disabled:
+            logger.error(f":: YahooApi Proxy Failure, making scraper dead")
+            self.working = False
         else:
             logger.error(f":: StockAnalysisAPI failed {symbol}: {response.status_code}")
             return None
@@ -188,4 +196,6 @@ class StockAnalysisAPI:
         return self.__class__.__name__
 
     def __str__(self):
-        return f"{self.__class__.__name__} {'(PROXY)' if self.session.proxy else ''}".strip()
+        return (
+            f"{self.__class__.__name__} {'(PROXY)' if self.use_proxy else ''}".strip()
+        )

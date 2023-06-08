@@ -1,34 +1,37 @@
-"""SQLITE DATABASE"""
 import os
-import sqlite3
+
+import psycopg2
 
 from src import logger
-from src.databases import DATA_DIR, ensure_dir
 
 
-class SqliteDB:
+class PostgresDB:
     def __init__(self):
-        self.dbpath = os.path.join(DATA_DIR, "database.sqlite")
-        ensure_dir(DATA_DIR)
-        self.conn = sqlite3.connect(self.dbpath)
-        self.cursor = self.conn.cursor()
+        self.conn = psycopg2.connect(
+            host=os.getenv("POSTGRES_HOST"),
+            port=os.getenv("POSTGRES_PORT"),
+            database=os.getenv("POSTGRES_DB"),
+            user=os.getenv("POSTGRES_USER"),
+            password=os.getenv("POSTGRES_PASSWORD"),
+        )
+        self.cur = self.conn.cursor()
         self.initdb()
 
     def initdb(self):
-        self.cursor.execute(
+        self.cur.execute(
             """
             CREATE TABLE IF NOT EXISTS stockinfo (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
                 symbol TEXT NOT NULL,
-                marketcap INTEGER NOT NULL,
+                marketcap BIGINT NOT NULL,
                 price REAL NOT NULL,
-                volume INTEGER NOT NULL,
+                volume BIGINT NOT NULL,
                 highprice REAL NOT NULL,
                 lowprice REAL NOT NULL,
                 open REAL NOT NULL,
                 prevclose REAL NOT NULL,
-                timestamp INTEGER NOT NULL
+                timestamp BIGINT NOT NULL
             )
         """
         )
@@ -36,7 +39,7 @@ class SqliteDB:
 
     def save(self, data):
         """Save data of multiple stocks in bulk"""
-        self.cursor.executemany(
+        self.cur.executemany(
             """
             INSERT INTO stockinfo (
                 name,
@@ -49,7 +52,7 @@ class SqliteDB:
                 open,
                 prevclose,
                 timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
             [
                 (
@@ -68,8 +71,13 @@ class SqliteDB:
             ],
         )
         self.conn.commit()
-        logger.debug(f":: SqliteDB: Saved {len(data)} stocks to database.")
+        logger.debug(f":: PostgresDB: Saved {len(data)} records to database")
         return self
 
+    def fetch(self, query, params=None):
+        self.cur.execute(query, params)
+        return self.cur.fetchall()
+
     def close(self):
+        self.cur.close()
         self.conn.close()

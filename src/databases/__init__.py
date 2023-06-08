@@ -22,10 +22,9 @@ from src.databases.listing_cache import ListingCache
 
 def cache_listings(symbols):
     db = ListingCache()
-    db.save_bulk(symbols)
+    db.save(symbols)
     db.close()
 
 
+from src.databases.postgresdb import PostgresDB
 from src.databases.sqlitedb import SqliteDB
-from src.databases.csvdb import CsvDB
-from src.databases.jsondb import JsonDB
