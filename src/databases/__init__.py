@@ -6,6 +6,8 @@ Warning, circular imports, need to be careful. The ordering is important
 
 isort:skip_file
 """
+from typing import Type, List
+from src.types import StockInfo
 import os
 
 # Storage directory
@@ -20,11 +22,12 @@ def ensure_dir(path):
 from src.databases.listing_cache import ListingCache
 
 
-def cache_listings(symbols):
-    db = ListingCache()
-    db.save(symbols)
-    db.close()
+def cache_listings(symbols: List[StockInfo]):
+    with ListingCache.session() as db:
+        db.save(symbols)
 
 
 from src.databases.postgresdb import PostgresDB
 from src.databases.sqlitedb import SqliteDB
+
+DBType = Type[PostgresDB] | Type[SqliteDB]

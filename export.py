@@ -40,7 +40,7 @@ class CsvExport:
             csv_writer.writerow(columns)
             # write data
             csv_writer.writerows(data)
-        logger.debug(f":: CsvExport: Exported {len(data)} rows to csv.")
+        logger.info(f":: CsvExport: Exported {len(data)} rows.")
 
     def close(self):
         self.db.close()
@@ -49,5 +49,9 @@ class CsvExport:
 if __name__ == "__main__":
     load_dotenv()
 
+    from src import init_logger
+
+    init_logger()
+
     CsvExport()
-    print(f":: CSV File exported to {os.path.abspath(DATA_DIR)}/data.csv")
+    logger.info(f":: CSV File exported to {os.path.abspath(DATA_DIR)}/data.csv")

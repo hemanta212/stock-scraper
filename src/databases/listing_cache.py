@@ -3,6 +3,8 @@ A sqlite db to keep record of fullnames of stocks with their symbols
 """
 import os
 import sqlite3
+from contextlib import contextmanager
+from typing import Dict
 
 from src import logger
 from src.databases import DATA_DIR, ensure_dir
@@ -12,11 +14,11 @@ class ListingCache:
     def __init__(self):
         self.dbpath = os.path.join(DATA_DIR, "listings.cache")
         ensure_dir(DATA_DIR)
-        self.conn = sqlite3.connect(self.dbpath)
-        self.cursor = self.conn.cursor()
         self.initdb()
 
     def initdb(self):
+        self.conn = sqlite3.connect(self.dbpath)
+        self.cursor = self.conn.cursor()
         self.cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS stocklist (
@@ -27,7 +29,7 @@ class ListingCache:
         )
         self.conn.commit()
 
-    def get_name(self, symbol):
+    def get_name(self, symbol: str):
         """
         Get the name of a stock from its symbol
         """
@@ -39,7 +41,7 @@ class ListingCache:
         )
         return self.cursor.fetchone()
 
-    def save(self, data: dict):
+    def save(self, data: Dict[str, str]):
         """
         Take a dictionary of symbol and name and update the database
         Check if already present, if not then add
@@ -59,3 +61,15 @@ class ListingCache:
 
     def close(self):
         self.conn.close()
+
+    @classmethod
+    @contextmanager
+    def session(cls):
+        """Context manager for database session"""
+        db = cls()
+        try:
+            yield db
+        except Exception as e:
+            logger.exception(e)
+        finally:
+            db.close()

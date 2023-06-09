@@ -1,4 +1,5 @@
-from queue import deque
+from collections import deque
+from typing import List
 
 import requests
 
@@ -25,20 +26,17 @@ class NYSE:
                 "maxResultsPerPage": 1001,
                 "filterToken": "",
             }
+
             response = requests.post(self.url, headers=self.headers, json=data)
+
             if response.status_code == 200:
                 data = response.json()
-                valid_stocks = [
-                    i
-                    for i in data
-                    if i.get("symbolTicker")
-                    and i.get("instrumentName")
-                    and i["symbolTicker"] == i.get("normalizedTicker")
-                    and i["micCode"] == "XNYS"
-                ]
+                valid_stocks = filter_valid_stocks(data)
+
                 for stock in valid_stocks:
                     symbol, name = stock["symbolTicker"], stock["instrumentName"]
                     symbols_names[symbol] = name
+
                 # Check if last page or pagination remaining
                 if len(data) < 1000:
                     break
@@ -50,7 +48,23 @@ class NYSE:
 
         logger.debug(f":: NYSEListing: Found {len(symbols_names)} stocks.")
 
-        cache_listings(symbols_names)
+        try:
+            cache_listings(symbols_names)
+        except:
+            logger.error(":: NYSEListing Error: Cannot save listings to cache.")
+
         symbols = deque(symbols_names.keys())
 
         return symbols
+
+
+def filter_valid_stocks(stocks: dict):
+    valid_stocks = [
+        i
+        for i in stocks
+        if i.get("symbolTicker")
+        and i.get("instrumentName")
+        and i["symbolTicker"] == i.get("normalizedTicker")
+        and i["micCode"] == "XNYS"
+    ]
+    return valid_stocks

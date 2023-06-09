@@ -11,6 +11,7 @@ import re
 import time
 from datetime import datetime
 from pprint import pformat
+from typing import Dict, List, Optional, Tuple
 
 import lxml.html
 import pytz
@@ -18,26 +19,34 @@ import requests
 
 from src import logger
 from src.databases import ListingCache
+from src.types import StockInfo
 from src.utils.proxy import RequestProxy
 
 
 class StockAnalysisAPI:
-    def __init__(self, batch_size=1, use_proxy=False, rate_limit=0):
+    def __init__(self, batch_size=1, use_proxy=False, rate_limit=0) -> None:
         self.BASE_URL = "https://stockanalysis.com/api/quotes/s/{}"
         self.batch_size = batch_size
         self.use_proxy = use_proxy
         self.rate_limit = rate_limit
 
-    def setup(self):
+    def setup(self) -> None:
+        """
+        Setup the scraper, create proxy session, test connection
+        """
         self.working = True
         self.session = RequestProxy(use_proxy=self.use_proxy)
         if not self.test_connection():
+            # Retry a new proxy once
             self.session = RequestProxy(use_proxy=self.use_proxy)
             if not self.test_connection():
+                # if still not working
                 logger.error(":: Setting Scraper as Dead")
                 self.working = False
 
-    def get_data(self, symbols, cancel_func=lambda: False):
+    def get_data(
+        self, symbols: List[str], cancel_func=lambda: False
+    ) -> List[Optional[StockInfo]]:
         """
         This API doesnot support batch requests.
         This method is wrapper for interface consistency.
@@ -45,7 +54,11 @@ class StockAnalysisAPI:
         data = self._get_data(symbols[0], cancel_func=cancel_func)
         return [data]
 
-    def _get_data(self, symbol, cancel_func=lambda: False):
+    def _get_data(self, symbol: str, cancel_func=lambda: False) -> Optional[StockInfo]:
+        """
+        Builds a url, header pair and makes a request.
+        if successful, converts the data to our uniform format.
+        """
         if self.rate_limit:
             time.sleep(self.rate_limit)
 
@@ -58,22 +71,24 @@ class StockAnalysisAPI:
         try:
             data = response.json()
         except requests.exceptions.JSONDecodeError as e:
-            logger.error(
-                f":: StockAnalysisAPI failed {symbol}: {response.status_code} {e}"
-            )
+            logger.warning(f":: {self} failed {symbol}: {response.status_code} {e}")
             return None
 
         if response.status_code == 200:
             return self.convert_data(data.get("data"), symbol)
         elif response.status_code == 407 or self.session.disabled:
-            logger.error(f":: YahooApi Proxy Failure, making scraper dead")
+            # This is our own response for proxy failure.
+            logger.error(f":: {self} Failure with proxy, making scraper dead")
             self.working = False
-        else:
-            logger.error(f":: StockAnalysisAPI failed {symbol}: {response.status_code}")
-            return None
 
-    def convert_data(self, stock_data, symbol):
-        if not stock_data:
+        logger.warning(f":: {self} failed {symbol}: {response.status_code}")
+        return None
+
+    def convert_data(self, stock_info: dict, symbol: str) -> Optional[StockInfo]:
+        """
+        Converts the api specific format and namings to our uniform format.
+        """
+        if not stock_info:
             return None
 
         new_data = {}
@@ -88,25 +103,25 @@ class StockAnalysisAPI:
             "cl": "prevclose",
         }
         for old_key, new_key in conversion_map.items():
-            value = stock_data.get(old_key)
+            value = stock_info.get(old_key)
+
             if not value:
-                logger.error(
-                    f":: StockAnalysisAPI: {symbol} Failed to get {new_key}:{old_key}"
-                )
-                logger.debug(pformat(stock_data))
+                logger.warning(f":: {self}: {symbol} Failed to get {new_key}:{old_key}")
+                logger.debug(pformat(stock_info))
                 return None
+
             new_data[new_key] = value
 
         name = self.get_name(symbol)
-        date = self.parse_date(stock_data.get("u"))
+        date = self.parse_date(stock_info.get("u"))
         if not name or not date:
             return None
 
         new_data["name"], new_data["symbol"], new_data["timestamp"] = name, symbol, date
-        return new_data
+        return StockInfo(**new_data)
 
-    def test_connection(self):
-        logger.info(":: Testing connection to StockAnalysis API")
+    def test_connection(self) -> bool:
+        logger.info(f":: Testing connection to {self}")
 
         try:
             data = self.get_data(["NKE"])
@@ -115,13 +130,13 @@ class StockAnalysisAPI:
             data = None
 
         if data:
-            logger.info(":: Connection to StockAnalysis API successful")
+            logger.info(f":: Connection to {self} successful")
             return True
         else:
-            logger.error(":: Connection to StockAnalysis API failed")
+            logger.error(f":: Connection to {self} failed")
             return False
 
-    def get_headers(self):
+    def get_headers(self) -> dict:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/114.0",
             "Accept": "*/*",
@@ -133,9 +148,10 @@ class StockAnalysisAPI:
             "Pragma": "no-cache",
             "Cache-Control": "no-cache",
         }
+        return headers
 
-    def get_name(self, symbol):
-        """Get name from listing cache database, if not found, scrape it"""
+    def get_name(self, symbol: str) -> str:
+        "Get name from listing cache database, if not found, scrape it"
         try:
             db = ListingCache()
             name = db.get_name(symbol)[0]
@@ -146,7 +162,7 @@ class StockAnalysisAPI:
             name = self.scrape_name(symbol)
         return name
 
-    def scrape_name(self, symbol):
+    def scrape_name(self, symbol: str) -> Optional[str]:
         time.sleep(1)
         url = f"https://stockanalysis.com/stocks/{symbol}/"
         headers = {
@@ -170,12 +186,12 @@ class StockAnalysisAPI:
             name = title[0].text_content().split("(")[0].strip()
             return name
         except Exception as e:
-            logger.exception(f":: StockAnalysisAPI getting name failed: {e} {title}")
+            logger.exception(f":: {self} getting name failed: {e} {title}")
             return None
 
-    def parse_date(self, raw_date):
+    def parse_date(self, raw_date: str) -> Optional[int]:
         if not raw_date:
-            logger.error(":: StockAnalysisAPI parse_date failed: No date")
+            logger.error(f":: {self} parse_date failed: No date")
             return None
 
         # convert 'Jun 6, 2023, 4:00 PM', or 'Jun 6, 2023, 4:00 AM EDT' etc to timestamp
@@ -186,7 +202,7 @@ class StockAnalysisAPI:
             # Extract the first match
             raw_date = matches[0]
         else:
-            logger.error(f":: StockAnalysisAPI parse_date failed: regex {raw_date}")
+            logger.error(f":: {self} parse_date failed: regex {raw_date}")
             return None
 
         # Parse the market time string

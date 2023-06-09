@@ -26,6 +26,12 @@ pylsp-mypy = "^0.6.7"
 pyls-isort = "^0.2.2"
 pylsp-rope = "^0.1.11"
 autoflake = "^2.1.1"
+radon = "^6.0.1"
+lxml-stubs = "^0.4.0"
+types-beautifulsoup4 = "^4.12.0.5"
+types-psycopg2 = "^2.9.21.10"
+types-pytz = "^2023.3.0.0"
+types-requests = "^2.31.0.1"
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,9 +1,12 @@
 """SQLITE DATABASE"""
 import os
 import sqlite3
+from contextlib import contextmanager
+from typing import List
 
 from src import logger
 from src.databases import DATA_DIR, ensure_dir
+from src.types import StockInfo
 
 
 class SqliteDB:
@@ -34,7 +37,7 @@ class SqliteDB:
         )
         self.conn.commit()
 
-    def save(self, data):
+    def save(self, data: List[StockInfo]):
         """Save data of multiple stocks in bulk"""
         self.cursor.executemany(
             """
@@ -53,23 +56,35 @@ class SqliteDB:
         """,
             [
                 (
-                    d["name"],
-                    d["symbol"],
-                    d["marketcap"],
-                    d["price"],
-                    d["volume"],
-                    d["highprice"],
-                    d["lowprice"],
-                    d["open"],
-                    d["prevclose"],
-                    d["timestamp"],
+                    d.name,
+                    d.symbol,
+                    d.marketcap,
+                    d.price,
+                    d.volume,
+                    d.highprice,
+                    d.lowprice,
+                    d.open,
+                    d.prevclose,
+                    d.timestamp,
                 )
                 for d in data
             ],
         )
         self.conn.commit()
-        logger.debug(f":: SqliteDB: Saved {len(data)} stocks to database.")
+        logger.info(f":: SqliteDB: Saved {len(data)} stocks to database.")
         return self
 
     def close(self):
         self.conn.close()
+
+    @classmethod
+    @contextmanager
+    def session(cls):
+        """Context manager for database session"""
+        db = cls()
+        try:
+            yield db
+        except Exception as e:
+            logger.debug(e)
+        finally:
+            db.close()

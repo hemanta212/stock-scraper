@@ -6,7 +6,7 @@ Yahoo API
 - This crumb is generated from the cookie and another endpoint.
 - Once, crumb and cookie is available the request can be made.
 
-NOTE: The cookie surprisingly does not expire, so it can be stored and reused
+NOTE: The cookie surprisingly does not expire(till 1 yr), so it can be stored and reused
 This means, we dont have to spin up a playwright instance as often.
 """
 import json
@@ -15,24 +15,26 @@ import time
 import urllib.parse
 from datetime import datetime
 from pprint import pformat
+from typing import Dict, List, Optional, Tuple
 
 import pytz
 
 from src import logger
+from src.types import StockInfo
 from src.utils.cookie_getter import get_browser_cookie
 from src.utils.proxy import RequestProxy
 from src.utils.validator import is_valid_stock
 
 
 class YahooAPI:
-    def __init__(self, batch_size=10, use_proxy=False, rate_limit=0):
+    def __init__(self, batch_size=10, use_proxy=False, rate_limit=0) -> None:
         self.BASE_URL = "https://query1.finance.yahoo.com/v7/finance/quote"
         self.batch_size = batch_size
         self.use_proxy = use_proxy
         self.rate_limit = rate_limit
         self.cookie_file_path = "cookie.json"
 
-    def setup(self):
+    def setup(self) -> None:
         self.working = True
         self.session = RequestProxy(use_proxy=self.use_proxy)
         self.cookie_cred = self.load_default_cookie()
@@ -41,26 +43,34 @@ class YahooAPI:
             self.cookie_cred = self.regenerate_cookie()
             # if still not working, then set works to False
             if not self.test_connection():
-                logger.error(":: Setting Yahoo API as Dead")
+                logger.error(f":: Setting {self} as Dead")
                 self.working = False
 
-    def get_data(self, symbols, cancel_func=lambda: False):
+    def get_data(
+        self, symbols: List[str], cancel_func=lambda: False
+    ) -> List[Optional[StockInfo]]:
         """
         Receives and Tries multiple symbols at once
         For those symbols that failed, tries one by one
         Then returns all data
         """
         data = self._get_data(symbols, cancel_func=cancel_func)
-        result = []
+        result: List[Optional[StockInfo]] = []
         for stock_data, symbol in zip(data, symbols):
             if stock_data and is_valid_stock(stock_data):
                 result.append(stock_data)
             else:
-                stock_data = self._get_data([symbol], cancel_func=cancel_func)
-                result.append(stock_data[0])
+                stock_data = self._get_data([symbol], cancel_func=cancel_func)[0]
+                result.append(stock_data)
         return data
 
-    def _get_data(self, symbols, cancel_func=lambda: False):
+    def _get_data(
+        self, symbols: List[str], cancel_func=lambda: False
+    ) -> List[Optional[StockInfo]]:
+        """
+        Builds a url, header pair and makes a request.
+        if successful, converts the data to our uniform format.
+        """
         if self.rate_limit:
             time.sleep(self.rate_limit)
 
@@ -78,71 +88,76 @@ class YahooAPI:
             api_error = data["quoteResponse"]["error"]
             result_data = data["quoteResponse"]["result"]
             if api_error is None and result_data:
-                return self.convert_data(result_data, symbols)
+                converted_data = [
+                    self.convert_data(stock_info, symbol)
+                    for stock_info, symbol in zip(result_data, symbols)
+                ]
+                return converted_data
 
         if response.status_code == 407 or self.session.disabled:
-            logger.error(f":: YahooApi Proxy Failure, making scraper dead")
+            # This is our own response code for proxy failure.
+            logger.error(f":: {self} Failure with proxy, making scraper dead")
             self.working = False
-
-        logger.error(
-            f":: YahooApi Failed {symbols}: {response.status_code} {response.text} {api_error}"
-        )
-        return None
-
-    def convert_data(self, stock_data, symbols):
-        results = []
-        for stock_info, symbol in zip(stock_data, symbols):
-            # favor longer name and fallback to shorter name
-            stock_info["name"] = stock_info.get("longName") or stock_info.get(
-                "shortName"
+        else:
+            logger.warning(
+                f":: {self} Failed {symbols}: {response.status_code} {response.text} {api_error}"
             )
 
-            conversion_map = {
-                "name": "name",
-                "marketCap": "marketcap",
-                "regularMarketPrice": "price",
-                "regularMarketVolume": "volume",
-                "regularMarketDayHigh": "highprice",
-                "regularMarketDayLow": "lowprice",
-                "regularMarketOpen": "open",
-                "regularMarketPreviousClose": "prevclose",
-            }
-            new_data = {}
-            for old_key, new_key in conversion_map.items():
-                value = stock_info.get(old_key)
-                if not value:
-                    logger.error(f":: YahooApi {symbol}: Failed to get {old_key}")
-                    logger.debug(pformat(stock_info))
-                    results.append(None)
-                    break
-                # for values with multi forms, prefer the raw form
-                if isinstance(value, dict):
-                    value = value.get("raw")
-                new_data[new_key] = value
-            else:
-                # Add remaining data
-                new_data["symbol"] = symbol
-                new_data["timestamp"] = self.parse_date(stock_info)
-                results.append(new_data)
-        return results
+        failed_data: List[Optional[StockInfo]] = [None] * len(symbols)
+        return failed_data
 
-    def test_connection(self):
-        logger.info(":: Testing connection to Yahoo API")
+    def convert_data(self, stock_info: dict, symbol: str) -> Optional[StockInfo]:
+        # favor longer name and fallback to shorter name
+        stock_info["name"] = stock_info.get("longName") or stock_info.get("shortName")
 
+        conversion_map = {
+            "name": "name",
+            "marketCap": "marketcap",
+            "regularMarketPrice": "price",
+            "regularMarketVolume": "volume",
+            "regularMarketDayHigh": "highprice",
+            "regularMarketDayLow": "lowprice",
+            "regularMarketOpen": "open",
+            "regularMarketPreviousClose": "prevclose",
+        }
+
+        new_data = {}
+        for old_key, new_key in conversion_map.items():
+            value = stock_info.get(old_key)
+            if not value:
+                # if any one value is missing, then skip this stock
+                logger.warning(f":: {self} {symbol}: Failed to get {old_key}")
+                logger.debug(pformat(stock_info))
+                break
+            # for values with multi forms, prefer the raw form
+            if isinstance(value, dict):
+                value = value.get("raw")
+            new_data[new_key] = value
+        else:
+            # Add remaining data
+            new_data["symbol"] = symbol
+            new_data["timestamp"] = self.parse_date(stock_info)
+            return StockInfo(**new_data)
+
+        return None
+
+    def test_connection(self) -> bool:
+        logger.info(f":: Testing connection to {self}")
+
+        data = None
         try:
             data = self.get_data(["NKE"])
         except Exception as e:
             logger.exception(e)
-            data = None
 
         if data:
-            logger.info(":: Connection to Yahoo API successful")
+            logger.info(f":: Connection to {self} successful")
             return True
         else:
-            logger.error(":: Connection to Yahoo API failed")
+            logger.error(f":: Connection to {self} failed")
             return False
 
-    def build_request(self, symbols):
+    def build_request(self, symbols: List[str]) -> Tuple[str, Dict[str, str]]:
         crumb, cookie_data = self.cookie_cred["crumb"], self.cookie_cred["cookie"]
         cookie = "; ".join([f"{k}={v}" for k, v in cookie_data.items()]).strip()
         fields = [
@@ -190,12 +205,12 @@ class YahooAPI:
         url = self.BASE_URL + "?" + urllib.parse.urlencode(query_params)
         return url, headers
 
-    def regenerate_cookie(self):
-        logger.info(":: Yahoo API: Regenerating cookie")
+    def regenerate_cookie(self) -> Dict:
+        logger.info(f":: {self}: Regenerating cookie")
         cookies = get_browser_cookie("https://finance.yahoo.com/quote/NKE")
 
         if not cookies:
-            logger.error(":: Yahoo API: PlayWright Failed to get cookie")
+            logger.error(f":: {self}: PlayWright Failed to get cookie")
             return {"cookie": {}, "crumb": ""}
 
         domains = [".yahoo.com", ".finance.yahoo.com"]
@@ -210,18 +225,18 @@ class YahooAPI:
         cookie_str = "; ".join([f"{k}={v}" for k, v in cookie.items()]).strip()
         crumb = self.get_crumb(cookie_str)
         if not crumb:
-            logger.error(":: Yahoo API: Failed to get crumb")
+            logger.error(f":: {self}: Failed to get crumb")
             return {"cookie": {}, "crumb": ""}
 
         cookie_data = {"cookie": cookie, "crumb": crumb}
-        logger.info(f":: Yahoo API: Generated new cookie {cookie_str}")
+        logger.info(f":: {self}: Generated new cookie {cookie_str}")
 
         with open(self.cookie_file_path, "w") as f:
             json.dump(cookie_data, f)
 
         return cookie_data
 
-    def get_crumb(self, cookie):
+    def get_crumb(self, cookie: str) -> Optional[str]:
         url = "https://query1.finance.yahoo.com/v1/test/getcrumb"
         headers = {
             "Host": "query1.finance.yahoo.com",
@@ -246,13 +261,13 @@ class YahooAPI:
         else:
             return None
 
-    def load_default_cookie(self):
+    def load_default_cookie(self) -> dict:
         if not os.path.exists(self.cookie_file_path):
             return self.regenerate_cookie()
         with open(self.cookie_file_path) as rf:
             return json.load(rf)
 
-    def parse_date(self, data):
+    def parse_date(self, data) -> int:
         exchange_timezone_name = data["exchangeTimezoneName"]
         regular_market_time_raw = data["regularMarketTime"]["raw"]
 

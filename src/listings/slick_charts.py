@@ -1,4 +1,4 @@
-from queue import deque
+from collections import deque
 
 import requests
 from bs4 import BeautifulSoup
@@ -11,6 +11,7 @@ class Listing:
     def queue(self):
         headers = self.get_headers()
         response = requests.get(self.url, headers=headers)
+
         soup = BeautifulSoup(response.text, "html.parser")
         table = soup.find(
             "table", {"class": "table table-hover table-borderless table-sm"}
@@ -29,7 +30,11 @@ class Listing:
             f":: {self.__class__.__name__}: Found {len(symbols_names)} stocks."
         )
 
-        cache_listings(symbols_names)
+        try:
+            cache_listings(symbols_names)
+        except:
+            logger.error(f":: {self.__name__} Error: Cannot save listings to cache.")
+
         symbols = deque(symbols_names.keys())
         return symbols
 

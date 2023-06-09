@@ -2,7 +2,7 @@
 from playwright.sync_api import sync_playwright
 
 
-def get_browser_cookie(url, headless=True):
+def get_browser_cookie(url: str, headless=True) -> dict:
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=headless)
         context = browser.new_context()

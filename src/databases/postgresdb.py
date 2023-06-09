@@ -1,8 +1,11 @@
 import os
+from contextlib import contextmanager
+from typing import List
 
 import psycopg2
 
 from src import logger
+from src.types import StockInfo
 
 
 class PostgresDB:
@@ -37,7 +40,7 @@ class PostgresDB:
         )
         self.conn.commit()
 
-    def save(self, data):
+    def save(self, data: List[StockInfo]):
         """Save data of multiple stocks in bulk"""
         self.cur.executemany(
             """
@@ -56,16 +59,16 @@ class PostgresDB:
         """,
             [
                 (
-                    d["name"],
-                    d["symbol"],
-                    d["marketcap"],
-                    d["price"],
-                    d["volume"],
-                    d["highprice"],
-                    d["lowprice"],
-                    d["open"],
-                    d["prevclose"],
-                    d["timestamp"],
+                    d.name,
+                    d.symbol,
+                    d.marketcap,
+                    d.price,
+                    d.volume,
+                    d.highprice,
+                    d.lowprice,
+                    d.open,
+                    d.prevclose,
+                    d.timestamp,
                 )
                 for d in data
             ],
@@ -74,10 +77,22 @@ class PostgresDB:
         logger.debug(f":: PostgresDB: Saved {len(data)} records to database")
         return self
 
-    def fetch(self, query, params=None):
+    def fetch(self, query: str, params=None):
         self.cur.execute(query, params)
         return self.cur.fetchall()
 
     def close(self):
         self.cur.close()
         self.conn.close()
+
+    @classmethod
+    @contextmanager
+    def session(cls):
+        """Context manager for database session"""
+        db = cls()
+        try:
+            yield db
+        except Exception as e:
+            logger.debug(e)
+        finally:
+            db.close()

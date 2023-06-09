@@ -15,30 +15,26 @@ We create and execute multiple tasks, out of same function instance using thread
 """
 
 import concurrent.futures
+from collections import deque
 from functools import partial
 from pprint import pformat
-from queue import deque
+from typing import Callable, Deque, Dict, List, Tuple
 
 from src import logger
+from src.runners.single_thread import cancel_func
+from src.scrapers import ScraperType
+from src.types import Result, StockInfo
 
 
-def parallel_executor(instance_func, scrapers, symbol_funcs):
-    result = {
-        "data": [],
-        "failures": {},
-    }
+def parallel_executor(
+    instance_func: Callable[..., None],
+    scrapers: List[ScraperType],
+    symbol_funcs: List[Callable[[], str]],
+    reprocess_failures=True,
+) -> Tuple[List[StockInfo], Dict[str, str]]:
+    result = Result(data=[], failures={})
 
-    # check if the symbol_func that fetches next symbol itself is empty
-    # Cancellation is only used for proxy scrapers
-    # To stop the time waste searching and rotating free proxies when queue is already empty
-    def cancel_func(symbol_func, scraper):
-        print("EE", len(symbol_func.__self__))
-        return len(symbol_func.__self__) == 0 and scraper.use_proxy
-
-    cancel_funcs = [
-        partial(cancel_func, symbol_func, scraper)
-        for scraper, symbol_func in zip(scrapers, symbol_funcs)
-    ]
+    cancel_funcs = [partial(cancel_func, symbol_func) for symbol_func in symbol_funcs]
 
     # Initial Pass
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -51,15 +47,24 @@ def parallel_executor(instance_func, scrapers, symbol_funcs):
         for future in concurrent.futures.as_completed(futures):
             future.result()
 
-    failures = result["failures"]
+    failures = result.failures
     logger.debug(f":: Failed symbols {len(failures)}: {pformat(failures)}")
 
-    final_result = {
-        "data": result["data"],
-        "failures": {},
-    }
+    if not reprocess_failures:
+        return result.data, result.failures
 
     # Second Pass: Retry failures with alternate scraper, and disable cancellation
+    reprocessed_result = reprocess_failure(instance_func, scrapers, failures, result)
+    return reprocessed_result.data, reprocessed_result.failures
+
+
+def reprocess_failure(
+    instance_func: Callable[..., None],
+    scrapers: List[ScraperType],
+    failures: Dict[str, str],
+    result: Result,
+) -> Result:
+    result = Result(data=result.data, failures={})
     disabled_cancel_func = lambda: False
     logger.info(":: Reprocessing failures with alternate scraper")
 
@@ -67,33 +72,36 @@ def parallel_executor(instance_func, scrapers, symbol_funcs):
         scrapers_symbols = match_scrapers_failures(scrapers, failures)
         futures = [
             executor.submit(
-                instance_func, scraper, symbol_func, final_result, disabled_cancel_func
+                instance_func, scraper, symbol_func, result, disabled_cancel_func
             )
             for scraper, symbol_func in scrapers_symbols.items()
             if failures
         ]
         for future in concurrent.futures.as_completed(futures):
             future.result()
+    return result
 
-    return final_result["data"], final_result["failures"]
 
-
-def match_scrapers_failures(scrapers, failures):
+def match_scrapers_failures(
+    scrapers: List[ScraperType], failures: Dict[str, str]
+) -> Dict[ScraperType, Callable[[], str]]:
     """
     When a stock fetch fails, its symbol and scraper used gets documented
     Here we try to read it, and assign symbol to different scraper
     """
-    # list of scrapers ['YahooAPI', 'StockAnalaysisAPI']
+    # list of scrapers eg. ['YahooAPI', 'StockAnalaysisAPI']
     scraper_names = list(set([repr(scraper) for scraper in scrapers]))
 
     # map name to deque, and fill the deque
-    scraper_names_map = {scraper_name: deque() for scraper_name in scraper_names}
+    scraper_names_map: Dict[str, Deque[str]] = {
+        scraper_name: deque() for scraper_name in scraper_names
+    }
 
     # makes {'sym1': 'A', 'sym2': 'A'] -> {'A': (sym1, sym2)}
     for symbol, scraper_name in failures.items():
         scraper_names_map[scraper_name].append(symbol)
 
-    scrapers_failures = {}
+    scrapers_failures: Dict[ScraperType, Callable[[], str]] = {}
     # assign deques to other scraper, which is one index above.
     for scraper in scrapers:
         scraper_name = repr(scraper)

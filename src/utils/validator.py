@@ -1,26 +1,28 @@
 """
 Validate the stock information as it is scraped
 """
+from typing import Dict, Tuple, Type, Union
+
 from src import logger
+from src.types import StockInfo
 
 
-def is_valid_stock(stock_info):
+def is_valid_stock(stock_info: StockInfo):
     field_types = {
-        "name": str,
-        "symbol": str,
-        "marketcap": int,
+        "name": (str,),
+        "symbol": (str,),
+        "marketcap": (int,),
         "price": (int, float),
-        "volume": int,
+        "volume": (int,),
         "highprice": (int, float),
         "lowprice": (int, float),
         "open": (int, float),
         "prevclose": (int, float),
-        "timestamp": int,
+        "timestamp": (int,),
     }
 
     for field, expected_types in field_types.items():
-        value = stock_info.get(field)
-
+        value = getattr(stock_info, field)
         # type check, null check
         if not isinstance(value, expected_types):
             expected_types_str = " or ".join(t.__name__ for t in expected_types)
