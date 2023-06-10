@@ -43,7 +43,6 @@ jobs:
           poetry run python export.py
       - name: Release
         uses: softprops/action-gh-release@v1
-        if: github.event_name == 'schedule'
         with:
           files: |
             data/database.sqlite
