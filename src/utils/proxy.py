@@ -89,7 +89,6 @@ class RequestProxy:
             return proxy
         except (FreeProxyException, TimeoutError) as e:
             logger.debug(f":: Proxy Error: {e}")
-            print(":: Cancel func says", cancel_func())
             if tries >= 3 or cancel_func():  # use 3 for no available proxy errors
                 self.disabled = True
                 return None

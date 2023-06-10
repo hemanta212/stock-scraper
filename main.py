@@ -21,9 +21,9 @@ def main(symbols: Deque[str]):
         SqliteDB,
     ]
     scrapers: List[ScraperType] = [
-        YahooAPI(batch_size=10, rate_limit=1.0),
-        YahooAPI(batch_size=10, use_proxy=True, rate_limit=0.5),
-        StockAnalysisAPI(batch_size=1, rate_limit=0.3),
+        YahooAPI(batch_size=50, rate_limit=1.0),
+        YahooAPI(batch_size=30, use_proxy=True, rate_limit=1.0),
+        StockAnalysisAPI(batch_size=1, rate_limit=0.5),
     ]
     symbol_access_funcs = [
         symbols.pop,
@@ -78,7 +78,7 @@ if __name__ == "__main__":
         symbols = symbols_fetcher.get_data()
     except Exception as e:
         logger.exception(f":: Failed getting listings for {listing_arg} {e}")
-        sys.exit(1)
+        sys.exit(0)
 
     logger.info(f":: Fetching {len(symbols)} stocks from {listing_arg}")
     main(symbols)

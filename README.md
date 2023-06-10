@@ -1,4 +1,5 @@
-# SINS: Stock Info Scraper
+# S-IN-S: Stock Info Scraper
+![scrapeJob](https://github.com/hemanta212/stock-scraper/workflows/Build/badge.svg)
 
 ## Instructions
 

@@ -80,5 +80,4 @@ def cancel_func(symbol_func: Callable[[], str]):
     # check if the symbol_func that fetches next symbol itself is empty
     # Cancellation is only used for proxy scrapers
     # To stop the time waste searching and rotating free proxies when queue is already empty
-    print(":: Hello", len(symbol_func.__self__))
     return len(symbol_func.__self__) == 0
