@@ -1,7 +1,17 @@
 # S-IN-S: Stock Info Scraper
 ![scrapeJob](https://github.com/hemanta212/stock-scraper/workflows/Build/badge.svg)
 
-## Instructions
+Scrapes the stock information off the YahooAPI and StockAnalysis.com.
+
+- Supports SQLITE and PostgresQL database and allows exporting to CSVs
+
+- The Scraping Job runs every 6 hours here on github actions, saves to remote postgres and sqlite databases.
+
+- The postgresql database is hosted live at custom azure vps @ v.hemantasharma.com.np
+
+- You can obtain the build artifacts of `data.csv` and `database.sqlite` in releases section.
+
+## Instructions for local installation
 
 - Clone this repository
 
@@ -28,7 +38,7 @@ sudo apt-get install postgresql postgresql-contrib postgresql-client
 
 ```
 sudo service postgresql start
-```    
+```
 
 3. Login to the psql shell
 

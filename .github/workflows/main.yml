@@ -3,12 +3,11 @@ name: Build
 on:
   schedule:
     # * is a special character in YAML so you have to quote this string
-    - cron:  '36 */6 * * *'
+    - cron: "36 */6 * * *"
   push:
 
-
 jobs:
-   Scrape:
+  Scrape:
     runs-on: ubuntu-latest
 
     steps:
@@ -39,7 +38,7 @@ jobs:
         run: |
           # Make scraping random times
           if [ $(($RANDOM % 50)) == 0 ]; then exit 0; fi
-          poetry run python main.py nyse
+          poetry run python main.py nyse -v
           sleep 3s;
           poetry run python export.py
       - name: Release

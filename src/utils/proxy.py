@@ -21,7 +21,7 @@ from src import logger
 class RequestProxy:
     def __init__(
         self,
-        use_proxy=True,
+        use_proxy=False,
         max_retries=5,
         timeout=10.0,
         cancel_func: Callable[[], bool] = lambda: False,

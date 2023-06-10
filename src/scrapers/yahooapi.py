@@ -123,11 +123,16 @@ class YahooAPI:
         return failed_data
 
     def convert_data(self, stock_info: dict, symbol: str) -> Optional[StockInfo]:
-        # favor longer name and fallback to shorter name
-        stock_info["name"] = stock_info.get("longName") or stock_info.get("shortName")
+        # favor longer name and fallback to shorter name or displayName
+        stock_info["name"] = (
+            stock_info.get("longName")
+            or stock_info.get("shortName")
+            or stock_info.get("displayName")
+        )
 
         conversion_map = {
             "name": "name",
+            "symbol": "symbol",
             "marketCap": "marketcap",
             "regularMarketPrice": "price",
             "regularMarketVolume": "volume",
@@ -150,8 +155,7 @@ class YahooAPI:
                 value = value.get("raw")
             new_data[new_key] = value
         else:
-            # Add remaining data
-            new_data["symbol"] = symbol
+            # Derive timestamp
             new_data["timestamp"] = self.parse_date(stock_info)
             return StockInfo(**new_data)
 
