@@ -10,7 +10,6 @@ from tests.datastructures import (
     StandardStockInfo,
     StandardStockInfoValues,
 )
-from tests.helpers import exception_tester
 
 
 def test_get_data_pass():
