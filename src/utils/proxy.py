@@ -44,7 +44,7 @@ class RequestProxy:
         url: str,
         cancel_func: Callable[[], bool] = lambda: False,
         tries: int = 0,
-        timeout: int = 5,
+        timeout: int = 10.0,
         **kwargs,
     ):
         if self.disabled:

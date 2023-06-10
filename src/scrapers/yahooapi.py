@@ -39,10 +39,10 @@ class YahooAPI:
         self.session = RequestProxy(use_proxy=self.use_proxy, cancel_func=cancel_func)
         self.cookie_cred = self.load_default_cookie()
         # refresh default cookie if not working
-        if not self.test_connection():
+        if not self.test_connection(cancel_func=cancel_func):
             self.cookie_cred = self.regenerate_cookie()
             # if still not working, then set works to False
-            if not self.test_connection():
+            if not self.test_connection(cancel_func=cancel_func):
                 logger.error(f":: Setting {self} as Dead")
                 self.working = False
 
@@ -75,10 +75,11 @@ class YahooAPI:
             if stock_data and is_valid_stock(stock_data):
                 result.append(stock_data)
             else:
+                # try individually again, then append anyway
                 stock_data = self._get_data([symbol], cancel_func=cancel_func)[0]
                 result.append(stock_data)
 
-        return data
+        return result
 
     def _get_data(
         self, symbols: List[str], cancel_func: Callable[[], bool] = lambda: False
@@ -161,12 +162,12 @@ class YahooAPI:
 
         return None
 
-    def test_connection(self) -> bool:
+    def test_connection(self, cancel_func: Callable[[], bool]) -> bool:
         logger.info(f":: Testing connection to {self}")
 
         data = None
         try:
-            data = self.get_data(["NKE"])
+            data = self.get_data(["NKE"], cancel_func=cancel_func)
         except Exception as e:
             logger.exception(e)
 

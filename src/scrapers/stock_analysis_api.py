@@ -36,10 +36,12 @@ class StockAnalysisAPI:
         """
         self.working = True
         self.session = RequestProxy(use_proxy=self.use_proxy, cancel_func=cancel_func)
-        if not self.test_connection():
+        if not self.test_connection(cancel_func=cancel_func):
             # Retry a new proxy once
-            self.session = RequestProxy(use_proxy=self.use_proxy)
-            if not self.test_connection():
+            self.session = RequestProxy(
+                use_proxy=self.use_proxy, cancel_func=cancel_func
+            )
+            if not self.test_connection(cancel_func=cancel_func):
                 # if still not working
                 logger.error(":: Setting Scraper as Dead")
                 self.working = False
@@ -122,11 +124,11 @@ class StockAnalysisAPI:
         new_data["name"], new_data["symbol"], new_data["timestamp"] = name, symbol, date
         return StockInfo(**new_data)
 
-    def test_connection(self) -> bool:
+    def test_connection(self, cancel_func: Callable[[], bool]) -> bool:
         logger.info(f":: Testing connection to {self}")
 
         try:
-            data = self.get_data(["NKE"])
+            data = self.get_data(["NKE"], cancel_func=cancel_func)
         except Exception as e:
             logger.exception(e)
             data = None

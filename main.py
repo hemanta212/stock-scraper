@@ -23,12 +23,14 @@ def main(symbols: Deque[str]):
     scrapers: List[ScraperType] = [
         YahooAPI(batch_size=50, rate_limit=1.0),
         YahooAPI(batch_size=30, use_proxy=True, rate_limit=1.0),
-        StockAnalysisAPI(batch_size=1, rate_limit=0.5),
+        StockAnalysisAPI(batch_size=1, rate_limit=0.3),
+        StockAnalysisAPI(batch_size=1, use_proxy=True, rate_limit=0.5),
     ]
     symbol_access_funcs = [
         symbols.pop,
         symbols.popleft,
         symbols.popleft,
+        symbols.pop,
     ]
 
     all_data, failures = parallel_executor(
