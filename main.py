@@ -75,7 +75,7 @@ if __name__ == "__main__":
 
     # Try to scrape listings from fetcher
     try:
-        symbols = symbols_fetcher().queue()
+        symbols = symbols_fetcher.get_data()
     except Exception as e:
         logger.exception(f":: Failed getting listings for {listing_arg} {e}")
         sys.exit(1)

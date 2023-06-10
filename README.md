@@ -17,22 +17,42 @@ Sqlite db output will be created at data directory in current folder
 
 ## Setting up Postgresql Database [Optional]
 
-1. Install postgres:
+1. Install postgres client and server:
 
 ```
-sudo apt-get install postgresql postgresql-contrib
+sudo apt-get install postgresql postgresql-contrib postgresql-client
 ```
 
-2. Now create a superuser for PostgreSQL
+2. Start the postgres service
 
 ```
-sudo -u postgres createuser --superuser name_of_user
+sudo service postgresql start
+```    
+
+3. Login to the psql shell
+
 ```
+sudo -i -u postgres psql
+```
+
+2. Now create a user and password
+
+```
+CREATE USER sammy WITH PASSWORD 'password';
+```
+
+NOTE: Don't forget the `;` semicolon, You should see the output `CREATE ROLE`
 
 3. And create a database using created user account
 
 ```
-sudo -u name_of_user createdb name_of_database
+CREATE DATABASE sammydb OWNER sammy;
+```
+
+4. Quit the psql shell
+
+```
+\q
 ```
 
 4. You can access created database with created user by,

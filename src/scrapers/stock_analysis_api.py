@@ -11,7 +11,7 @@ import re
 import time
 from datetime import datetime
 from pprint import pformat
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import lxml.html
 import pytz
@@ -24,18 +24,18 @@ from src.utils.proxy import RequestProxy
 
 
 class StockAnalysisAPI:
-    def __init__(self, batch_size=1, use_proxy=False, rate_limit=0) -> None:
+    def __init__(self, batch_size=1, use_proxy=False, rate_limit=0.0) -> None:
         self.BASE_URL = "https://stockanalysis.com/api/quotes/s/{}"
         self.batch_size = batch_size
         self.use_proxy = use_proxy
         self.rate_limit = rate_limit
 
-    def setup(self) -> None:
+    def setup(self, cancel_func: Callable[[], bool] = lambda: False) -> None:
         """
         Setup the scraper, create proxy session, test connection
         """
         self.working = True
-        self.session = RequestProxy(use_proxy=self.use_proxy)
+        self.session = RequestProxy(use_proxy=self.use_proxy, cancel_func=cancel_func)
         if not self.test_connection():
             # Retry a new proxy once
             self.session = RequestProxy(use_proxy=self.use_proxy)
@@ -45,7 +45,7 @@ class StockAnalysisAPI:
                 self.working = False
 
     def get_data(
-        self, symbols: List[str], cancel_func=lambda: False
+        self, symbols: List[str], cancel_func: Callable[[], bool] = lambda: False
     ) -> List[Optional[StockInfo]]:
         """
         This API doesnot support batch requests.
@@ -54,7 +54,9 @@ class StockAnalysisAPI:
         data = self._get_data(symbols[0], cancel_func=cancel_func)
         return [data]
 
-    def _get_data(self, symbol: str, cancel_func=lambda: False) -> Optional[StockInfo]:
+    def _get_data(
+        self, symbol: str, cancel_func: Callable[[], bool] = lambda: False
+    ) -> Optional[StockInfo]:
         """
         Builds a url, header pair and makes a request.
         if successful, converts the data to our uniform format.
@@ -150,7 +152,7 @@ class StockAnalysisAPI:
         }
         return headers
 
-    def get_name(self, symbol: str) -> str:
+    def get_name(self, symbol: str) -> Optional[str]:
         "Get name from listing cache database, if not found, scrape it"
         try:
             db = ListingCache()

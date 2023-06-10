@@ -6,8 +6,7 @@ Warning, circular imports, need to be careful. The ordering is important
 
 isort:skip_file
 """
-from typing import Type, List
-from src.types import StockInfo
+from typing import Type, List, Dict
 import os
 
 # Storage directory
@@ -22,7 +21,7 @@ def ensure_dir(path):
 from src.databases.listing_cache import ListingCache
 
 
-def cache_listings(symbols: List[StockInfo]):
+def cache_listings(symbols: Dict[str, str]):
     with ListingCache.session() as db:
         db.save(symbols)
 

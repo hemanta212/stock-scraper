@@ -19,10 +19,20 @@ from src import logger
 
 
 class RequestProxy:
-    def __init__(self, use_proxy=True, max_retries=5, timeout=10):
+    def __init__(
+        self,
+        use_proxy=True,
+        max_retries=5,
+        timeout=10.0,
+        cancel_func: Callable[[], bool] = lambda: False,
+    ):
         self.session = requests.Session()
         self.use_proxy = use_proxy
-        self.proxy = self.set_proxy(timeout=timeout) if self.use_proxy else None
+        self.proxy = (
+            self.set_proxy(timeout=timeout, cancel_func=cancel_func)
+            if self.use_proxy
+            else None
+        )
         self.max_retries = max_retries
         self.disabled = False
         # once disabled the request method always returns a 407
@@ -69,7 +79,7 @@ class RequestProxy:
         self,
         cancel_func: Callable[[], bool] = lambda: False,
         tries: int = 0,
-        timeout=5,
+        timeout=5.0,
     ):
         logger.debug(f":: Proxy: Getting new proxy, please wait..")
         try:
@@ -79,6 +89,7 @@ class RequestProxy:
             return proxy
         except (FreeProxyException, TimeoutError) as e:
             logger.debug(f":: Proxy Error: {e}")
+            print(":: Cancel func says", cancel_func())
             if tries >= 3 or cancel_func():  # use 3 for no available proxy errors
                 self.disabled = True
                 return None

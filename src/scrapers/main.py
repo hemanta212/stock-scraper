@@ -22,7 +22,7 @@ def scraper_instance(
     """
     # start scraper
     logger.info(f":: Starting scraper {scraper}...")
-    scraper.setup()
+    scraper.setup(cancel_func=cancel_func)
 
     index = 0
     while True:

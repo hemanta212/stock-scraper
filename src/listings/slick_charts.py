@@ -1,4 +1,5 @@
 from collections import deque
+from typing import Dict, List
 
 import requests
 from bs4 import BeautifulSoup
@@ -8,16 +9,19 @@ from src.databases import cache_listings
 
 
 class Listing:
-    def queue(self):
+    url = "https://www.slickcharts.com/nasdaq100"
+
+    def get_data(self):
         headers = self.get_headers()
         response = requests.get(self.url, headers=headers)
-
         soup = BeautifulSoup(response.text, "html.parser")
+
         table = soup.find(
             "table", {"class": "table table-hover table-borderless table-sm"}
         )
-        symbols_names = {}
         tr_blocks = table.find_all("tr")
+
+        symbols_names = {}
         for block in tr_blocks:
             td_blocks = block.find_all("td")
             if len(td_blocks) == 0:
@@ -26,17 +30,21 @@ class Listing:
             symbol = td_blocks[2].text.strip()
             symbols_names[symbol] = full_name
 
+        self.save_to_cache(symbols_names)
+        symbols = deque(symbols_names.keys())
+
         logger.debug(
             f":: {self.__class__.__name__}: Found {len(symbols_names)} stocks."
         )
-
-        try:
-            cache_listings(symbols_names)
-        except:
-            logger.error(f":: {self.__name__} Error: Cannot save listings to cache.")
-
-        symbols = deque(symbols_names.keys())
         return symbols
+
+    def save_to_cache(self, symbols: Dict[str, str]):
+        try:
+            cache_listings(symbols)
+        except:
+            logger.error(
+                f":: {self._class__.__name__} Error: Cannot save listings to cache."
+            )
 
     def get_headers(self):
         headers = {

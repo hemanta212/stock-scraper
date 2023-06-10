@@ -15,7 +15,7 @@ import time
 import urllib.parse
 from datetime import datetime
 from pprint import pformat
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import pytz
 
@@ -27,16 +27,16 @@ from src.utils.validator import is_valid_stock
 
 
 class YahooAPI:
-    def __init__(self, batch_size=10, use_proxy=False, rate_limit=0) -> None:
+    def __init__(self, batch_size=10, use_proxy=False, rate_limit=0.0) -> None:
         self.BASE_URL = "https://query1.finance.yahoo.com/v7/finance/quote"
         self.batch_size = batch_size
         self.use_proxy = use_proxy
         self.rate_limit = rate_limit
         self.cookie_file_path = "cookie.json"
 
-    def setup(self) -> None:
+    def setup(self, cancel_func: Callable[[], bool] = lambda: False) -> None:
         self.working = True
-        self.session = RequestProxy(use_proxy=self.use_proxy)
+        self.session = RequestProxy(use_proxy=self.use_proxy, cancel_func=cancel_func)
         self.cookie_cred = self.load_default_cookie()
         # refresh default cookie if not working
         if not self.test_connection():
@@ -47,7 +47,7 @@ class YahooAPI:
                 self.working = False
 
     def get_data(
-        self, symbols: List[str], cancel_func=lambda: False
+        self, symbols: List[str], cancel_func: Callable[[], bool] = lambda: False
     ) -> List[Optional[StockInfo]]:
         """
         Receives and Tries multiple symbols at once
@@ -65,7 +65,7 @@ class YahooAPI:
         return data
 
     def _get_data(
-        self, symbols: List[str], cancel_func=lambda: False
+        self, symbols: List[str], cancel_func: Callable[[], bool] = lambda: False
     ) -> List[Optional[StockInfo]]:
         """
         Builds a url, header pair and makes a request.
