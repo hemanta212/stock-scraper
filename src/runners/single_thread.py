@@ -41,16 +41,24 @@ def executor(
     # Initial Pass
     instance_func(scraper, symbol_func, result, cancel_function)
 
-    failures = result.failures
-    logger.debug(f":: Failed symbols {len(failures)}: {pformat(failures)}")
+    # Get real failures,
+    failures, result_data_symbols = result.failures, {d.symbol for d in result.data}
+    failures = {sym: s for sym, s in failures.items() if sym not in result_data_symbols}
 
-    if not reprocess_failures or failures is None:
-        return result.data, result.failures
+    logger.debug(f":: Failed symbols {len(failures)}: {pformat(failures)}")
 
     # Second Pass: Retry failures once again, using alt scraper if available
     # do it one by one i.e batch_size=1
-    reprocessed_result = reprocess_failure(instance_func, scrapers, failures, result)
-    return reprocessed_result.data, result.failures
+    if reprocess_failures and failures:
+        result = reprocess_failure(instance_func, scrapers, failures, result)
+
+    data, failures = result.data, result.failures
+    # remove duplicates in all data and failures
+    data = list({d.symbol: d for d in data}.values())
+    all_symbols = [d.symbol for d in data]
+    failures = {sym: s for sym, s in failures.items() if sym not in all_symbols}
+
+    return data, failures
 
 
 def reprocess_failure(

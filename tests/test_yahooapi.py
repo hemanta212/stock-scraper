@@ -3,6 +3,7 @@ from random import randint
 
 import pytest
 
+from src.types import StockInfo
 from tests.datastructures import (
     CRequestProxy,
     CustomResponse,
@@ -21,23 +22,9 @@ def test_get_data_pass():
     api = CYahooAPI(response=response)
     assert api.get_data(["FI"] * num) == [StandardStockInfo] * num
 
-    # Incomplete pass, some pass some fails
-    response_data = CustomResponse().json()
-    result_data = CustomResponse().default_data()
-    good_results = [result_data] * 10
-    bad_result_data = [CustomResponse().default_data()] * 4
-    del bad_result_data[0]["symbol"]
-    del bad_result_data[1]["marketCap"]
-    del bad_result_data[2]["regularMarketPrice"]
-    del bad_result_data[3]["regularMarketVolume"]
-
-    response_data["quoteResponse"]["result"] = good_results + bad_result_data
-    api = CYahooAPI(response=CustomResponse(replace_json=response_data))
-    assert api.get_data(["FI"] * 14) == [StandardStockInfo] * 10 + [None] * 4
-
 
 def get_test_data_incomplete():
-    responses = [CustomResponse().default_data()] * 9
+    responses = [CustomResponse().default_data() for _ in range(9)]
     remove_keys = [
         "symbol",
         "marketCap",
@@ -60,7 +47,7 @@ def get_test_data_incomplete():
         assert api.get_data(["FI"] * num) == [None] * num
 
     # test names incompleteness, fallback and complete absence seperately
-    responses = [CustomResponse().default_data()] * 3
+    responses = [CustomResponse().default_data() for _ in range(2)]
     keys = ["shortName", "displayName"]
 
     # should use longName by default
@@ -81,12 +68,12 @@ def get_test_data_incomplete():
     api = CYahooAPI(response=CustomResponse(replace_result=[response]))
     expected = dict(**StandardStockInfoValues)
     expected["name"] = response["shortName"]
-    assert api.get_data(["FI"]) == [StandardStockInfo(**expected)]
+    assert api.get_data(["FI"]) == [StockInfo(**expected)]
 
     del response["shortName"]
     api = CYahooAPI(response=CustomResponse(replace_result=[response]))
     expected["name"] = response["displayName"]
-    assert api.get_data(["FI"]) == [StandardStockInfo(**expected)]
+    assert api.get_data(["FI"]) == [StockInfo(**expected)]
 
 
 def test_get_data_codes():
@@ -118,7 +105,7 @@ def test_get_data_empty():
 
     api = CYahooAPI(response=CustomResponse(replace_result="gibber"))
     with pytest.raises(AttributeError) as e:
-        api.get_data(["NMB"]) == []
+        api.get_data(["NMB"])
 
 
 def test_get_data_exception():

@@ -47,15 +47,22 @@ def parallel_executor(
         for future in concurrent.futures.as_completed(futures):
             future.result()
 
-    failures = result.failures
+    # Get real failures, some failure arises due to same symbol being taken up by multiple scrapers
+    failures, result_data_symbols = result.failures, {d.symbol for d in result.data}
+    failures = {sym: s for sym, s in failures.items() if sym not in result_data_symbols}
     logger.debug(f":: Failed symbols {len(failures)}: {pformat(failures)}")
 
-    if not reprocess_failures:
-        return result.data, result.failures
+    # Second Pass: Retry failures with alternate scraper, batch size = 1 and disable cancellation
+    if reprocess_failures and failures:
+        result = reprocess_failure(instance_func, scrapers, failures, result)
 
-    # Second Pass: Retry failures with alternate scraper, and disable cancellation
-    reprocessed_result = reprocess_failure(instance_func, scrapers, failures, result)
-    return reprocessed_result.data, reprocessed_result.failures
+    data, failures = result.data, result.failures
+    # remove duplicates in all data and failures
+    data = list({d.symbol: d for d in data}.values())
+    all_symbols = [d.symbol for d in data]
+    failures = {sym: s for sym, s in failures.items() if sym not in all_symbols}
+
+    return data, failures
 
 
 def reprocess_failure(
@@ -66,6 +73,8 @@ def reprocess_failure(
 ) -> Result:
     result = Result(data=result.data, failures={})
     disabled_cancel_func = lambda: False
+    for scraper in scrapers:
+        scraper.batch_size = 1
     logger.info(":: Reprocessing failures with alternate scraper")
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -75,7 +84,6 @@ def reprocess_failure(
                 instance_func, scraper, symbol_func, result, disabled_cancel_func
             )
             for scraper, symbol_func in scrapers_symbols.items()
-            if failures
         ]
         for future in concurrent.futures.as_completed(futures):
             future.result()
