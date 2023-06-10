@@ -56,12 +56,28 @@ class YahooAPI:
         """
         data = self._get_data(symbols, cancel_func=cancel_func)
         result: List[Optional[StockInfo]] = []
+
+        failures = []
         for stock_data, symbol in zip(data, symbols):
+            if stock_data and is_valid_stock(stock_data):
+                result.append(stock_data)
+            else:
+                failures.append(symbol)
+
+        if not failures:
+            return result
+
+        # first pass try all failures at once
+        failures_data = self._get_data(failures, cancel_func=cancel_func)
+
+        # second pass try one by one if still failed
+        for stock_data, symbol in zip(failures_data, failures):
             if stock_data and is_valid_stock(stock_data):
                 result.append(stock_data)
             else:
                 stock_data = self._get_data([symbol], cancel_func=cancel_func)[0]
                 result.append(stock_data)
+
         return data
 
     def _get_data(

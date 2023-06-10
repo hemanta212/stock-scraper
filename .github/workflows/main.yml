@@ -40,11 +40,7 @@ jobs:
           # Make scraping random times
           if [ $(($RANDOM % 50)) == 0 ]; then exit 0; fi
           poetry run python main.py nyse
-          sleep 10s;
-          poetry run python main.py dowjones30
-          poetry run python main.py nasdaq100
-          sleep 10s;
-          poetry run python main.py sandp500
+          sleep 3s;
           poetry run python export.py
       - name: Release
         uses: softprops/action-gh-release@v1
