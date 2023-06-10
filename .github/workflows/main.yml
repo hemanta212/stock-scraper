@@ -42,8 +42,13 @@ jobs:
           sleep 3s;
           poetry run python export.py
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: "marvinpinto/action-automatic-releases@latest"
+        if: github.event_name == 'schedule'
         with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "latest"
+          prerelease: true
+          title: "Scraped Data"
           files: |
             data/database.sqlite
             data/data.csv
