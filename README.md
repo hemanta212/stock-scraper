@@ -1,5 +1,6 @@
 # S-IN-S: Stock Info Scraper
 ![scrapeJob](https://github.com/hemanta212/stock-scraper/workflows/Build/badge.svg)
+![tests](https://github.com/hemanta212/stock-scraper/workflows/Tests/badge.svg)
 
 Scrapes the stock information off the YahooAPI and StockAnalysis.com.
 
