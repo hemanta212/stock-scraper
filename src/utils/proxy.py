@@ -43,8 +43,8 @@ class RequestProxy:
         method: str,
         url: str,
         cancel_func: Callable[[], bool] = lambda: False,
-        tries: int = 0,
-        timeout: int = 10.0,
+        tries=0,
+        timeout=10.0,
         **kwargs,
     ):
         if self.disabled:
@@ -70,7 +70,12 @@ class RequestProxy:
                 logger.debug(f":: {proxy} Request Error: {self.proxy}, {e} Rotating")
                 self.proxy = self.set_proxy(cancel_func) if self.use_proxy else None
                 return self.request(
-                    method, url, tries=tries + 1, timeout=timeout, **kwargs
+                    method,
+                    url,
+                    cancel_func=cancel_func,
+                    tries=tries + 1,
+                    timeout=timeout,
+                    **kwargs,
                 )
 
         return response
@@ -79,7 +84,7 @@ class RequestProxy:
         self,
         cancel_func: Callable[[], bool] = lambda: False,
         tries: int = 0,
-        timeout=5.0,
+        timeout=10.0,
     ):
         logger.debug(f":: Proxy: Getting new proxy, please wait..")
         try:

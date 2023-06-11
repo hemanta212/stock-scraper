@@ -47,14 +47,15 @@ def scraper_instance(
             break
 
         try:
-            data = scraper.get_data(symbols, cancel_func=cancel_func)
+            symbol_data = scraper.get_data(symbols, cancel_func=cancel_func)
         except Exception as e:
             logger.exception(f":: {scraper}: {e}")
+            result.failures.update({symbol: repr(scraper) for symbol in symbols})
             continue
 
-        for stock_data, symbol in zip(data, symbols):
+        for symbol, stock_data in symbol_data.items():
             if stock_data and is_valid_stock(stock_data):
-                result.data.append(stock_data)
+                result.data.update({symbol: stock_data})
                 index += 1
                 logger.debug(f":: {scraper}: Added {symbol} | {index}")
             else:

@@ -48,19 +48,19 @@ class YahooAPI:
 
     def get_data(
         self, symbols: List[str], cancel_func: Callable[[], bool] = lambda: False
-    ) -> List[Optional[StockInfo]]:
+    ) -> Dict[str, Optional[StockInfo]]:
         """
         Receives and Tries multiple symbols at once
         For those symbols that failed, tries one by one
         Then returns all data
         """
+        result: Dict[str, StockInfo] = {symbol: None for symbol in symbols}
         data = self._get_data(symbols, cancel_func=cancel_func)
-        result: List[Optional[StockInfo]] = []
 
         failures = []
         for stock_data, symbol in zip(data, symbols):
             if stock_data and is_valid_stock(stock_data):
-                result.append(stock_data)
+                result[symbol] = stock_data
             else:
                 failures.append(symbol)
 
@@ -73,11 +73,11 @@ class YahooAPI:
         # second pass try one by one if still failed
         for stock_data, symbol in zip(failures_data, failures):
             if stock_data and is_valid_stock(stock_data):
-                result.append(stock_data)
+                result[symbol] = stock_data
             else:
-                # try individually again, then append anyway
+                # try individually again, then add anyway
                 stock_data = self._get_data([symbol], cancel_func=cancel_func)[0]
-                result.append(stock_data)
+                result[symbol] = stock_data
 
         return result
 

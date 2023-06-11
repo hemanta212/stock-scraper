@@ -29,7 +29,7 @@ def executor(
     symbol_funcs: List[Callable[[], str]],
     reprocess_failures=True,
 ) -> Tuple[List[StockInfo], Dict[str, str]]:
-    result = Result(data=[], failures={})
+    result = Result(data={}, failures={})
 
     # First scraper is used.
     scraper = scrapers[0]
@@ -41,10 +41,9 @@ def executor(
     # Initial Pass
     instance_func(scraper, symbol_func, result, cancel_function)
 
-    # Get real failures,
-    failures, result_data_symbols = result.failures, {d.symbol for d in result.data}
-    failures = {sym: s for sym, s in failures.items() if sym not in result_data_symbols}
-
+    # Get real failures
+    failures, data = result.failures, result.data
+    failures = {sym: s for sym, s in failures.items() if sym not in data}
     logger.debug(f":: Failed symbols {len(failures)}: {pformat(failures)}")
 
     # Second Pass: Retry failures once again, using alt scraper if available
@@ -54,11 +53,9 @@ def executor(
 
     data, failures = result.data, result.failures
     # remove duplicates in all data and failures
-    data = list({d.symbol: d for d in data}.values())
-    all_symbols = [d.symbol for d in data]
-    failures = {sym: s for sym, s in failures.items() if sym not in all_symbols}
+    failures = {sym: s for sym, s in failures.items() if sym not in data}
 
-    return data, failures
+    return list(data.values()), failures
 
 
 def reprocess_failure(

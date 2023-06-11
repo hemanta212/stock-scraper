@@ -32,7 +32,7 @@ def parallel_executor(
     symbol_funcs: List[Callable[[], str]],
     reprocess_failures=True,
 ) -> Tuple[List[StockInfo], Dict[str, str]]:
-    result = Result(data=[], failures={})
+    result = Result(data={}, failures={})
 
     cancel_funcs = [partial(cancel_func, symbol_func) for symbol_func in symbol_funcs]
 
@@ -48,21 +48,20 @@ def parallel_executor(
             future.result()
 
     # Get real failures, some failure arises due to same symbol being taken up by multiple scrapers
-    failures, result_data_symbols = result.failures, {d.symbol for d in result.data}
-    failures = {sym: s for sym, s in failures.items() if sym not in result_data_symbols}
+    failures, data = result.failures, result.data
+    failures = {sym: s for sym, s in failures.items() if sym not in data}
     logger.debug(f":: Failed symbols {len(failures)}: {pformat(failures)}")
 
     # Second Pass: Retry failures with alternate scraper, batch size = 1 and disable cancellation
+    # Second Pass: Retry failures with alternate scraper, disable cancellation
     if reprocess_failures and failures:
         result = reprocess_failure(instance_func, scrapers, failures, result)
 
     data, failures = result.data, result.failures
     # remove duplicates in all data and failures
-    data = list({d.symbol: d for d in data}.values())
-    all_symbols = [d.symbol for d in data]
-    failures = {sym: s for sym, s in failures.items() if sym not in all_symbols}
+    failures = {sym: s for sym, s in failures.items() if sym not in data}
 
-    return data, failures
+    return list(data.values()), failures
 
 
 def reprocess_failure(
@@ -73,8 +72,6 @@ def reprocess_failure(
 ) -> Result:
     result = Result(data=result.data, failures={})
     disabled_cancel_func = lambda: False
-    for scraper in scrapers:
-        scraper.batch_size = 1
     logger.info(":: Reprocessing failures with alternate scraper")
 
     with concurrent.futures.ThreadPoolExecutor() as executor:

@@ -18,5 +18,5 @@ class StockInfo:
 
 @dataclass
 class Result:
-    data: List[StockInfo]
+    data: Dict[str, StockInfo]
     failures: Dict[str, str]

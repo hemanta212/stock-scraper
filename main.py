@@ -34,7 +34,7 @@ def main(symbols: Deque[str]):
     ]
 
     all_data, failures = parallel_executor(
-        scraper_instance, scrapers, symbol_access_funcs
+        scraper_instance, scrapers, symbol_access_funcs, symbols
     )
 
     logger.info(f":: Scraped {len(all_data)} stocks data.")

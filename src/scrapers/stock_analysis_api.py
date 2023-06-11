@@ -48,13 +48,15 @@ class StockAnalysisAPI:
 
     def get_data(
         self, symbols: List[str], cancel_func: Callable[[], bool] = lambda: False
-    ) -> List[Optional[StockInfo]]:
+    ) -> Dict[str, Optional[StockInfo]]:
         """
         This API doesnot support batch requests.
         This method is wrapper for interface consistency.
         """
+        if not symbols:
+            return {}
         data = self._get_data(symbols[0], cancel_func=cancel_func)
-        return [data]
+        return {symbols[0]: data}
 
     def _get_data(
         self, symbol: str, cancel_func: Callable[[], bool] = lambda: False
