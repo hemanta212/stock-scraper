@@ -30,6 +30,7 @@ def parallel_executor(
     instance_func: Callable[..., None],
     scrapers: List[ScraperType],
     symbol_funcs: List[Callable[[], str]],
+    symbols: Deque[str],
     reprocess_failures=True,
 ) -> Tuple[List[StockInfo], Dict[str, str]]:
     result = Result(data={}, failures={})
@@ -52,7 +53,6 @@ def parallel_executor(
     failures = {sym: s for sym, s in failures.items() if sym not in data}
     logger.debug(f":: Failed symbols {len(failures)}: {pformat(failures)}")
 
-    # Second Pass: Retry failures with alternate scraper, batch size = 1 and disable cancellation
     # Second Pass: Retry failures with alternate scraper, disable cancellation
     if reprocess_failures and failures:
         result = reprocess_failure(instance_func, scrapers, failures, result)
@@ -94,37 +94,25 @@ def match_scrapers_failures(
     When a stock fetch fails, its symbol and scraper used gets documented
     Here we try to read it, and assign symbol to different scraper
     """
-    # list of scrapers eg. ['YahooAPI', 'StockAnalaysisAPI']
-    scraper_names = list(set([repr(scraper) for scraper in scrapers]))
-
-    # map name to deque, and fill the deque
-    scraper_names_map: Dict[str, Deque[str]] = {
-        scraper_name: deque() for scraper_name in scraper_names
-    }
-
-    # makes {'sym1': 'A', 'sym2': 'A'] -> {'A': (sym1, sym2)}
+    new_scraper_symbols_match: Dict[ScraperType, Callable[[], str]] = {}
+    # reverse failures dict, from {sym: scraper} to {scraper: [sym1, sym2]}
+    rev_failures = {scraper_name: deque() for scraper_name in set(failures.values())}
     for symbol, scraper_name in failures.items():
-        scraper_names_map[scraper_name].append(symbol)
+        rev_failures[scraper_name].append(symbol)
 
-    scrapers_failures: Dict[ScraperType, Callable[[], str]] = {}
-    # assign deques to other scraper, which is one index above.
-    for scraper in scrapers:
-        scraper_name = repr(scraper)
-
-        # Find key whose deque values to take
-        assign_index = (scraper_names.index(scraper_name) + 1) % len(scraper_names)
-        assign_key = scraper_names[assign_index]
-        deque_symbol = scraper_names_map[assign_key]
-
-        # Assign symbol func for scraper
-        # If non proxy version of scraper available donot assign proxy version
-        is_proxy = scraper.use_proxy
-        non_proxy_available = [
-            s for s in scrapers if repr(s) == repr(scraper) and not s.use_proxy
+    for scraper_name, symbol in rev_failures.items():
+        available_scrapers = [
+            scraper for scraper in scrapers if repr(scraper) != scraper_name
         ]
-        if is_proxy and non_proxy_available:
-            continue
+        available_non_proxy_scrapers = [
+            scraper for scraper in available_scrapers if not scraper.use_proxy
+        ]
+        if available_non_proxy_scrapers:
+            new_scraper_symbols_match[available_non_proxy_scrapers[0]] = symbol.pop
+        elif available_scrapers:
+            new_scraper_symbols_match[available_scrapers[0]] = symbol.pop
         else:
-            scrapers_failures[scraper] = deque_symbol.pop
+            logger.debug(":: No alternate scrapers available to reprocess failures.")
+            new_scraper_symbols_match[scrapers[0]] = symbol.pop
 
-    return scrapers_failures
+    return new_scraper_symbols_match

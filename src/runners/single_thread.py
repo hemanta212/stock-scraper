@@ -16,7 +16,7 @@ We create and execute instance function.
 from collections import deque
 from functools import partial
 from pprint import pformat
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Deque, Dict, List, Tuple
 
 from src import logger
 from src.scrapers import ScraperType
@@ -27,6 +27,7 @@ def executor(
     instance_func: Callable[..., None],
     scrapers: List[ScraperType],
     symbol_funcs: List[Callable[[], str]],
+    symbols: Deque[str],
     reprocess_failures=True,
 ) -> Tuple[List[StockInfo], Dict[str, str]]:
     result = Result(data={}, failures={})
