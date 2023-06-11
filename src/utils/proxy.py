@@ -7,7 +7,6 @@ A wrapper around requests to handle proxy rotation and retries.
 
 
 import threading
-import time
 from queue import Queue
 from typing import Callable
 

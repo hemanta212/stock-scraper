@@ -1,11 +1,9 @@
-import sys
 from random import randint
 
 import pytest
 
 from src.types import StockInfo
 from tests.datastructures import (
-    CRequestProxy,
     CustomResponse,
     CYahooAPI,
     StandardStockInfo,

@@ -1,4 +1,4 @@
-from typing import Dict, Type
+from typing import Dict
 
 from src.listings.nyse import NYSE
 from src.listings.slick_charts import DowJones30, Nasdaq100, SandP500

@@ -1,5 +1,5 @@
 from collections import deque
-from typing import Dict, List
+from typing import Dict
 
 import requests
 from bs4 import BeautifulSoup

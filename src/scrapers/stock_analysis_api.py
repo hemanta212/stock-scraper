@@ -11,7 +11,7 @@ import re
 import time
 from datetime import datetime
 from pprint import pformat
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional
 
 import lxml.html
 import pytz

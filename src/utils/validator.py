@@ -1,8 +1,6 @@
 """
 Validate the stock information as it is scraped
 """
-from typing import Dict, Tuple, Type, Union
-
 from src import logger
 from src.types import StockInfo
 

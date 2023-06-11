@@ -6,7 +6,7 @@ Warning, circular imports, need to be careful. The ordering is important
 
 isort:skip_file
 """
-from typing import Type, List, Dict
+from typing import Type, Dict
 import os
 
 # Storage directory

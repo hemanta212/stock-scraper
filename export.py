@@ -3,7 +3,6 @@ Connects to postgresql db and export the data in csv format
 """
 import csv
 import os
-from typing import Any
 
 from dotenv import load_dotenv
 
