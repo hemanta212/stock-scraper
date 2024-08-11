@@ -35,6 +35,7 @@ Sqlite db output will be created at data directory in current folder
 sudo apt-get install postgresql postgresql-contrib postgresql-client
 ```
 
+
 2. Start the postgres service
 
 ```
@@ -45,6 +46,7 @@ sudo service postgresql start
 
 ```
 sudo -i -u postgres psql
+// psql postgres for macos systems
 ```
 
 2. Now create a user and password
